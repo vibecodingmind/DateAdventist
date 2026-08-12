@@ -50,6 +50,9 @@ Then set Android `.env`:
 API_BASE_URL=https://<your-host>/api/v1/
 ```
 
-## 4. CI
+Backend tests (run locally before you deploy):
 
-GitHub Actions (`.github/workflows/ci.yml`) runs backend tests and `tsc` on every push and pull request.
+```bash
+cd backend
+npm test
+```

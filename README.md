@@ -72,4 +72,4 @@ docker compose up --build
 
 ## Deploy
 
-See [DEPLOYMENT.md](DEPLOYMENT.md). GitHub Actions runs backend tests on every push. After the API is hosted, set `API_BASE_URL` to `https://<your-host>/api/v1/` in the Android `.env`.
+See [DEPLOYMENT.md](DEPLOYMENT.md). After the API is hosted, set `API_BASE_URL` to `https://<your-host>/api/v1/` in the Android `.env`.
