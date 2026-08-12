@@ -1,0 +1,6 @@
+{
+  "name": "AdventHearts",
+  "description": "Faith. Connection. Purpose. Seventh-day Adventist Christian Dating Platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

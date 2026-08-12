@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "adventhearts-dev",
+    "staging": "adventhearts-staging",
+    "production": "adventhearts-prod"
+  }
+}

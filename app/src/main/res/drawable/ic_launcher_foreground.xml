@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Heart outline/fill in warm rose gold gradient -->
+    <path android:pathData="M54,78 C54,78 28,60 28,40 C28,31 35,24 44,24 C49.2,24 53.8,26.5 54,29.5 C54.2,26.5 58.8,24 64,24 C73,24 80,31 80,40 C80,60 54,78 54,78 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="28"
+                android:startY="24"
+                android:endX="80"
+                android:endY="78"
+                android:type="linear">
+                <item android:color="#E63946" android:offset="0.0" />
+                <item android:color="#D4A373" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    
+    <!-- Subtle Christian Cross overlay inside heart -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51.5,32 h5 v22 h-5 z M43,39 h22 v5 h-22 z" />
+</vector>
