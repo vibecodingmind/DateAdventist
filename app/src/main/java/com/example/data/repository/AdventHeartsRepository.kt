@@ -12,11 +12,17 @@ import com.example.data.local.PassEntity
 import com.example.data.local.ProfileEntity
 import com.example.data.local.ReportEntity
 import com.example.data.local.UserAccountEntity
+import com.example.data.remote.AdventHeartsApiClient
+import com.example.data.remote.ApiResponse
+import com.example.data.remote.AuthResponseData
+import com.example.data.remote.toEntity
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import java.util.UUID
 
-class AdventHeartsRepository(private val dao: AdventHeartsDao) {
+class AdventHeartsRepository(
+    private val dao: AdventHeartsDao,
+    private val api: AdventHeartsApiClient = AdventHeartsApiClient()
+) {
 
     companion object {
         @Volatile
@@ -29,6 +35,100 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
                 INSTANCE = repo
                 repo
             }
+        }
+    }
+
+    suspend fun loginRemote(email: String, password: String): ApiResponse<AuthResponseData> {
+        val result = api.login(email, password)
+        if (result is ApiResponse.Success) {
+            cacheRemoteSession(result.data, password)
+            syncFromBackend()
+        }
+        return result
+    }
+
+    suspend fun registerRemote(
+        fullName: String,
+        email: String,
+        password: String,
+        age: Int,
+        gender: String,
+        country: String,
+        city: String,
+        intention: String
+    ): ApiResponse<AuthResponseData> {
+        val result = api.register(
+            email = email,
+            password = password,
+            fullName = fullName,
+            dateOfBirth = "",
+            gender = gender,
+            country = country,
+            city = city,
+            age = age,
+            relationshipIntention = intention
+        )
+        if (result is ApiResponse.Success) {
+            cacheRemoteSession(result.data, password)
+        }
+        return result
+    }
+
+    suspend fun loginAdminRemote(email: String, password: String): ApiResponse<AuthResponseData> {
+        return api.loginAdmin(email, password)
+    }
+
+    private suspend fun cacheRemoteSession(data: AuthResponseData, password: String) {
+        dao.insertUserAccount(
+            UserAccountEntity(
+                userId = data.userId,
+                email = data.email,
+                passwordHash = password,
+                role = data.role,
+                isEmailVerified = true
+            )
+        )
+        val profile = when (val remote = api.fetchProfile()) {
+            is ApiResponse.Success -> remote.data
+            else -> null
+        }
+        if (profile != null) {
+            dao.insertProfile(profile)
+        }
+    }
+
+    suspend fun syncFromBackend() {
+        when (val profiles = api.fetchDiscoveryProfiles()) {
+            is ApiResponse.Success -> profiles.data.forEach { dao.insertProfile(it) }
+            else -> Unit
+        }
+        when (val me = api.fetchProfile()) {
+            is ApiResponse.Success -> dao.insertProfile(me.data)
+            else -> Unit
+        }
+        when (val matches = api.fetchMatches()) {
+            is ApiResponse.Success -> matches.data.forEach { match ->
+                dao.insertMatch(match.toEntity())
+                match.otherProfile?.let { dao.insertProfile(it.toEntity()) }
+            }
+            else -> Unit
+        }
+        when (val likes = api.fetchLikes()) {
+            is ApiResponse.Success -> likes.data.forEach { like ->
+                dao.insertLike(
+                    LikeEntity(
+                        fromUserId = like.fromUserId,
+                        toUserId = like.toUserId ?: "",
+                        isSuperLike = like.isSuperLike
+                    )
+                )
+                like.profile?.let { dao.insertProfile(it.toEntity()) }
+            }
+            else -> Unit
+        }
+        when (val notifications = api.fetchNotifications()) {
+            is ApiResponse.Success -> notifications.data.forEach { dao.insertNotification(it.toEntity()) }
+            else -> Unit
         }
     }
 
@@ -49,6 +149,25 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
 
     // Likes, Passes & Matching Logic
     suspend fun sendLike(fromUserId: String, toUserId: String, isSuperLike: Boolean): Boolean {
+        when (val remote = api.sendLike(fromUserId, toUserId, isSuperLike)) {
+            is ApiResponse.Success -> {
+                dao.insertLike(LikeEntity(fromUserId = fromUserId, toUserId = toUserId, isSuperLike = isSuperLike))
+                val matchId = remote.data.matchId
+                if (remote.data.isMatch && !matchId.isNullOrBlank()) {
+                    dao.insertMatch(
+                        MatchEntity(
+                            matchId = matchId,
+                            user1Id = fromUserId,
+                            user2Id = toUserId,
+                            compatibilityScore = remote.data.compatibilityScore,
+                            conversationStarter = "You matched on AdventHearts!"
+                        )
+                    )
+                }
+                return remote.data.isMatch
+            }
+            else -> Unit
+        }
         dao.insertLike(LikeEntity(fromUserId = fromUserId, toUserId = toUserId, isSuperLike = isSuperLike))
         
         // Check if reciprocal like exists (Mutual Match!)
@@ -107,6 +226,7 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
     }
 
     suspend fun sendPass(fromUserId: String, toUserId: String) {
+        api.sendPass(toUserId)
         dao.insertPass(PassEntity(fromUserId = fromUserId, toUserId = toUserId))
     }
 
@@ -120,6 +240,13 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
     // Messaging
     fun getMessages(matchId: String): Flow<List<MessageEntity>> = dao.getMessagesForMatch(matchId)
     suspend fun sendMessage(matchId: String, senderId: String, receiverId: String, text: String) {
+        when (val remote = api.sendMessage(matchId, text)) {
+            is ApiResponse.Success -> {
+                dao.insertMessage(remote.data)
+                return
+            }
+            else -> Unit
+        }
         val msg = MessageEntity(
             messageId = UUID.randomUUID().toString(),
             matchId = matchId,
@@ -135,8 +262,16 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
         dao.markMessagesAsRead(matchId, currentUserId)
     }
 
+    suspend fun syncMessages(matchId: String) {
+        when (val remote = api.fetchMessages(matchId)) {
+            is ApiResponse.Success -> remote.data.forEach { dao.insertMessage(it) }
+            else -> Unit
+        }
+    }
+
     // Safety & Moderation
     suspend fun reportUser(reporterId: String, reportedUserId: String, reason: String, details: String) {
+        api.reportUser(reportedUserId, reason, details)
         val report = ReportEntity(
             reportId = "rep_${UUID.randomUUID()}",
             reporterId = reporterId,
@@ -151,6 +286,7 @@ class AdventHeartsRepository(private val dao: AdventHeartsDao) {
     suspend fun updateReportStatus(reportId: String, status: String) = dao.updateReportStatus(reportId, status)
 
     suspend fun blockUser(blockerId: String, blockedUserId: String) {
+        api.blockUser(blockedUserId)
         dao.insertBlock(BlockEntity(blockerId = blockerId, blockedUserId = blockedUserId))
     }
 

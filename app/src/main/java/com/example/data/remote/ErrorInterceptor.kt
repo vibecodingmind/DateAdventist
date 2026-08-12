@@ -12,7 +12,6 @@ class ErrorInterceptor : Interceptor {
         when (response.code) {
             401 -> {
                 Log.w("HTTP_ERROR", "401 Unauthorized encountered for ${request.url}")
-                AuthTokenManager.onUnauthorized()
             }
             403 -> {
                 Log.e("HTTP_ERROR", "403 Forbidden - RBAC or Permission Denied for ${request.url}")

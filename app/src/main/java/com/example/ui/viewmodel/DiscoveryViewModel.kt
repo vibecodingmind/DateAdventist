@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.ProfileEntity
+import com.example.data.remote.AuthTokenManager
 import com.example.data.repository.AdventHeartsRepository
 import com.example.service.LocationMatchingService
 import com.example.service.UserLocation
@@ -45,8 +46,16 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private val _currentUserId = MutableStateFlow("usr_me")
+    private val _currentUserId = MutableStateFlow(AuthTokenManager.currentUserId ?: "usr_me")
     fun setCurrentUserId(id: String) { _currentUserId.value = id }
+
+    private fun uid(): String = _currentUserId.value.ifBlank { AuthTokenManager.currentUserId ?: "usr_me" }
+
+    init {
+        viewModelScope.launch {
+            repo.syncFromBackend()
+        }
+    }
 
     private val _selectedTab = MutableStateFlow("Recommended") // Recommended, Nearby, New, Most Compatible, Verified
     val selectedTab: StateFlow<String> = _selectedTab.asStateFlow()
@@ -58,11 +67,11 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     val matchAlertProfile: StateFlow<ProfileEntity?> = _matchAlertProfile.asStateFlow()
 
     val discoveryProfiles: StateFlow<List<ProfileEntity>> = combine(
-        repo.getAllOtherProfiles("usr_me"),
+        repo.getAllOtherProfiles(uid()),
         _filterState,
         _selectedTab
     ) { allProfiles, filter, tab ->
-        val currentMyProfile = repo.getProfileSync("usr_me")
+        val currentMyProfile = repo.getProfileSync(uid())
 
         allProfiles.filter { p ->
             // Age
@@ -115,7 +124,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onLike(targetProfile: ProfileEntity, isSuperLike: Boolean = false) {
         viewModelScope.launch {
-            val isMatch = repo.sendLike("usr_me", targetProfile.userId, isSuperLike)
+            val isMatch = repo.sendLike(uid(), targetProfile.userId, isSuperLike)
             if (isMatch) {
                 _matchAlertProfile.value = targetProfile
             }
@@ -124,7 +133,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun onPass(targetProfile: ProfileEntity) {
         viewModelScope.launch {
-            repo.sendPass("usr_me", targetProfile.userId)
+            repo.sendPass(uid(), targetProfile.userId)
         }
     }
 
@@ -133,19 +142,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun getCompatibilityScore(targetProfile: ProfileEntity): Int {
-        val myProfile = ProfileEntity(
-            userId = "usr_me", fullName = "Joshua Miller", age = 28, gender = "Male",
-            country = "United States", city = "Berrien Springs", occupation = "Engineer",
-            education = "BS", bio = "", relationshipIntention = "Marriage", primaryPhoto = "",
-            photoUrls = emptyList(), adventistAffiliation = "Seventh-day Adventist Member",
-            yearsAsAdventist = 28, localChurch = "Pioneer Memorial Church", isBaptized = true,
-            faithImportance = "Central to everything I do", churchInvolvement = "Very active",
-            sabbathObservance = listOf("Church Service", "Nature Walks"),
-            ministryInterests = listOf("Youth", "Evangelism"), personalBibleStudy = "Daily",
-            favoriteVerse = "Jeremiah 29:11", diet = "Vegetarian", alcohol = "None / Abstain",
-            smoking = "Never", wantsChildren = "Yes, definitely", hasChildren = false,
-            interests = listOf("Sabbath Nature Walks", "Youth Ministry")
-        )
+        val myProfile = repo.getProfileSync(uid())
         return repo.calculateCompatibility(myProfile, targetProfile)
     }
 }

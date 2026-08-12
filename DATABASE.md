@@ -1,29 +1,25 @@
 # AdventHearts - Database Specification & Migration Guide
 
+The live schema lives in `backend/prisma/schema.prisma`. Local development uses SQLite (`file:./dev.db`) so the API can run without Docker. Production can keep the same models; swap the Prisma `provider` to `postgresql` and set `DATABASE_URL` when you attach a managed Postgres instance.
+
 ## 1. Relational Database Architecture
-AdventHearts utilizes PostgreSQL with Prisma ORM for relational persistence.
+AdventHearts uses Prisma ORM for relational persistence.
 
 ### Key Indexing Strategy
-- `User`: Index on `email` (unique), `status`, `lastActiveAt`.
-- `Profile`: Spatial/B-tree index on `(country, city)`, `adventistAffiliation`, `dateOfBirth`.
-- `Like`: Compound unique index on `(fromUserId, toUserId)` to guarantee idempotent swiping and eliminate race conditions.
-- `Match`: Compound index on `(user1Id, user2Id)` and B-Tree index on `matchedAt`.
-- `Message`: Index on `(matchId, createdAt DESC)` for efficient paginated chat retrieval.
+- `User`: unique `email`, status + last active.
+- `Profile`: country/city, gender, date of birth.
+- `Like`: compound unique `(fromUserId, toUserId)` for idempotent swipes.
+- `Match`: compound unique `(user1Id, user2Id)`.
+- `Message`: `(matchId, createdAt)` for chat history.
 
 ---
 
 ## 2. Running Migrations
 
 ```bash
-# Generate Prisma client
+cd backend
+
 npx prisma generate
-
-# Execute development migration
-npx prisma migrate dev --name init_schema
-
-# Execute production migration deployment
-npx prisma migrate deploy
-
-# Seed database with initial admin and sample Adventist profiles
+npx prisma db push
 npx prisma db seed
 ```

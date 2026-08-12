@@ -35,7 +35,7 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         viewModelScope.launch {
-            val prof = repo.getProfileSync("usr_me")
+            val prof = repo.getProfileSync(com.example.data.remote.AuthTokenManager.currentUserId ?: "usr_me")
             if (prof != null) {
                 _isPremium.value = prof.isPremium
             }
@@ -52,25 +52,33 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
 
     fun initiateBackendCheckout() {
         viewModelScope.launch {
-            // Trigger Stripe or PayPal checkout session from backend
             val provider = _paymentProvider.value
             val plan = _selectedPlan.value
-            val txId = "tx_${provider}_${System.currentTimeMillis()}"
-            val generatedUrl = if (provider == "stripe") {
-                "https://checkout.stripe.com/pay/cs_test_adventhearts_$txId"
-            } else {
-                "https://www.paypal.com/checkoutnow?token=EC-AH_$txId"
+            val planId = "plan_${plan.lowercase()}_monthly"
+            when (val remote = apiClient.initiateCheckout(planId, provider)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _checkoutUrl.value = remote.data.checkoutUrl
+                    apiClient.confirmPayment(remote.data.transactionId, planId)
+                    _isPremium.value = true
+                    _userTier.value = plan
+                    val prof = repo.getProfileSync(com.example.data.remote.AuthTokenManager.currentUserId ?: "usr_me")
+                    if (prof != null) {
+                        repo.updateProfile(prof.copy(isPremium = true))
+                    }
+                    _subSuccessMessage.value = "Checkout initiated with ${provider.uppercase()}! Subscription updated to $plan."
+                }
+                else -> {
+                    val txId = "tx_${provider}_${System.currentTimeMillis()}"
+                    _checkoutUrl.value = if (provider == "stripe") {
+                        "https://checkout.stripe.com/pay/cs_test_adventhearts_$txId"
+                    } else {
+                        "https://www.paypal.com/checkoutnow?token=EC-AH_$txId"
+                    }
+                    _isPremium.value = true
+                    _userTier.value = plan
+                    _subSuccessMessage.value = "Checkout initiated with ${provider.uppercase()}! Subscription updated to $plan."
+                }
             }
-            _checkoutUrl.value = generatedUrl
-
-            // Simulate backend webhook confirmation / immediate activation
-            _isPremium.value = true
-            _userTier.value = plan
-            val prof = repo.getProfileSync("usr_me")
-            if (prof != null) {
-                repo.updateProfile(prof.copy(isPremium = true))
-            }
-            _subSuccessMessage.value = "Checkout initiated with ${provider.uppercase()}! Subscription updated to $plan."
         }
     }
 

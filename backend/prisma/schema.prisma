@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -7,39 +7,17 @@ generator client {
   provider = "prisma-client-js"
 }
 
-enum Role {
-  USER
-  MODERATOR
-  ADMIN
-  SUPER_ADMIN
-}
-
-enum AccountStatus {
-  ACTIVE
-  PAUSED
-  SUSPENDED
-  BANNED
-  DELETED
-}
-
-enum VerificationStatus {
-  NOT_VERIFIED
-  PENDING
-  VERIFIED
-  REJECTED
-}
-
 model User {
-  id                String            @id @default(uuid())
-  email             String            @unique
+  id                String   @id @default(uuid())
+  email             String   @unique
   passwordHash      String
-  role              Role              @default(USER)
-  status            AccountStatus     @default(ACTIVE)
-  isEmailVerified   Boolean           @default(false)
+  role              String   @default("USER")
+  status            String   @default("ACTIVE")
+  isEmailVerified   Boolean  @default(false)
   verificationToken String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  lastActiveAt      DateTime          @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastActiveAt      DateTime @default(now())
 
   profile           Profile?
   faithProfile      FaithProfile?
@@ -58,9 +36,6 @@ model User {
   blockedBy         Block[]           @relation("Blocked")
   subscription      Subscription?
   auditLogs         AuditLog[]
-
-  @@index([email])
-  @@index([status, lastActiveAt])
 }
 
 model Profile {
@@ -74,58 +49,52 @@ model Profile {
   city                  String
   latitude              Float?
   longitude             Float?
-  occupation            String
-  education             String
-  bio                   String             @db.Text
-  relationshipIntention String
-  primaryPhoto          String
-  photoUrls             String[]
-  isVerified            Boolean            @default(false)
-  verificationStatus    VerificationStatus @default(NOT_VERIFIED)
+  distanceKm            Int                @default(12)
+  occupation            String             @default("")
+  education             String             @default("")
+  bio                   String             @default("")
+  relationshipIntention String             @default("Marriage")
+  primaryPhoto          String             @default("")
+  photoUrls             String             @default("[]")
+  isVerified            Boolean @default(false)
+  verificationStatus    String  @default("NOT_VERIFIED")
   verificationSelfie    String?
   isPremium             Boolean            @default(false)
   isPaused              Boolean            @default(false)
-
-  // Lifestyle Profile
-  diet                  String
-  alcohol               String
-  smoking               String
-  wantsChildren         String
+  diet                  String             @default("Vegetarian")
+  alcohol               String             @default("None / Abstain")
+  smoking               String             @default("Never")
+  wantsChildren         String             @default("Yes, definitely")
   hasChildren           Boolean            @default(false)
-  interests             String[]
-
-  @@index([country, city])
-  @@index([gender, dateOfBirth])
+  interests             String             @default("[]")
 }
 
 model FaithProfile {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  adventistAffiliation  String
-  yearsAsAdventist      Int
-  localChurch           String
-  isBaptized            Boolean  @default(true)
-  faithImportance       String
-  churchInvolvement     String
-  sabbathObservance     String[]
-  ministryInterests     String[]
-  personalBibleStudy    String
-  favoriteVerse         String?
-
-  @@index([adventistAffiliation])
+  id                   String  @id @default(uuid())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adventistAffiliation String  @default("Seventh-day Adventist Member")
+  yearsAsAdventist     Int     @default(0)
+  localChurch          String  @default("")
+  isBaptized           Boolean @default(true)
+  faithImportance      String  @default("Central to everything I do")
+  churchInvolvement    String  @default("Active")
+  sabbathObservance    String  @default("[]")
+  ministryInterests    String  @default("[]")
+  personalBibleStudy   String  @default("Daily")
+  favoriteVerse        String?
 }
 
 model Preference {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  minAge                Int      @default(18)
-  maxAge                Int      @default(99)
-  preferredGender       String   @default("Any")
-  maxDistanceKm         Int      @default(100)
-  preferredAffiliations String[]
-  preferredDiets        String[]
+  id                    String @id @default(uuid())
+  userId                String @unique
+  user                  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  minAge                Int    @default(18)
+  maxAge                Int    @default(99)
+  preferredGender       String @default("Any")
+  maxDistanceKm         Int    @default(500)
+  preferredAffiliations String @default("[]")
+  preferredDiets        String @default("[]")
 }
 
 model Like {
@@ -135,56 +104,50 @@ model Like {
   isSuperLike Boolean  @default(false)
   createdAt   DateTime @default(now())
 
-  fromUser    User     @relation("LikesSent", fields: [fromUserId], references: [id])
-  toUser      User     @relation("LikesReceived", fields: [toUserId], references: [id])
+  fromUser User @relation("LikesSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("LikesReceived", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@unique([fromUserId, toUserId])
-  @@index([fromUserId])
-  @@index([toUserId])
 }
 
 model Pass {
-  id          String   @id @default(uuid())
-  fromUserId  String
-  toUserId    String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  fromUserId String
+  toUserId   String
+  createdAt  DateTime @default(now())
 
-  fromUser    User     @relation("PassesSent", fields: [fromUserId], references: [id])
+  fromUser User @relation("PassesSent", fields: [fromUserId], references: [id], onDelete: Cascade)
 
   @@unique([fromUserId, toUserId])
 }
 
 model Match {
-  id                  String    @id @default(uuid())
+  id                  String   @id @default(uuid())
   user1Id             String
   user2Id             String
   compatibilityScore  Int
   conversationStarter String
-  matchedAt           DateTime  @default(now())
+  matchedAt           DateTime @default(now())
 
-  user1               User      @relation("User1Matches", fields: [user1Id], references: [id])
-  user2               User      @relation("User2Matches", fields: [user2Id], references: [id])
-  messages            Message[]
+  user1    User      @relation("User1Matches", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User      @relation("User2Matches", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages Message[]
 
   @@unique([user1Id, user2Id])
-  @@index([user1Id])
-  @@index([user2Id])
 }
 
 model Message {
-  id          String   @id @default(uuid())
-  matchId     String
-  senderId    String
-  receiverId  String
-  text        String   @db.Text
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  matchId    String
+  senderId   String
+  receiverId String
+  text       String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
-  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-
-  @@index([matchId, createdAt(sort: Desc)])
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender   User  @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User  @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -196,9 +159,7 @@ model Notification {
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isRead])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Report {
@@ -206,12 +167,12 @@ model Report {
   reporterId     String
   reportedUserId String
   reason         String
-  details        String   @db.Text
+  details        String
   status         String   @default("OPEN")
   createdAt      DateTime @default(now())
 
-  reporter       User     @relation("Reporter", fields: [reporterId], references: [id])
-  reportedUser   User     @relation("ReportedUser", fields: [reportedUserId], references: [id])
+  reporter     User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser User @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: Cascade)
 }
 
 model Block {
@@ -220,8 +181,8 @@ model Block {
   blockedUserId String
   createdAt     DateTime @default(now())
 
-  blocker       User     @relation("Blocker", fields: [blockerId], references: [id])
-  blocked       User     @relation("Blocked", fields: [blockedUserId], references: [id])
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedUserId])
 }
@@ -235,7 +196,7 @@ model Subscription {
   currentPeriodEnd     DateTime
   createdAt            DateTime @default(now())
 
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemSettings {
@@ -253,5 +214,5 @@ model AuditLog {
   ipAddress String?
   createdAt DateTime @default(now())
 
-  actor     User     @relation(fields: [actorId], references: [id])
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 }
