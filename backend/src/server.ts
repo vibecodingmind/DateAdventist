@@ -43,8 +43,22 @@ export function createServer() {
 
 if (process.env.NODE_ENV !== 'test') {
   const server = createServer();
-  server.listen(config.port, () => {
-    console.log(`AdventHearts Backend API running on port ${config.port}`);
+  const host = process.env.HOST || '0.0.0.0';
+
+  (async () => {
+    const { prisma } = await import('./db/prisma');
+    const existing = await prisma.user.count();
+    if (existing === 0) {
+      const { seedDatabase } = await import('./seed');
+      console.log('Empty database — loading AdventHearts demo accounts...');
+      await seedDatabase();
+    }
+    server.listen(config.port, host, () => {
+      console.log(`AdventHearts Backend API listening on ${host}:${config.port}`);
+    });
+  })().catch((err) => {
+    console.error('Failed to start AdventHearts API', err);
+    process.exit(1);
   });
 }
 
