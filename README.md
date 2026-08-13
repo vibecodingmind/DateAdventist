@@ -75,8 +75,10 @@ docker compose up --build
 
 ## Deploy
 
-See [DEPLOYMENT.md](DEPLOYMENT.md). Point every client at the same HTTPS API:
+See [GO_LIVE.md](GO_LIVE.md) and [DEPLOYMENT.md](DEPLOYMENT.md). Point every client at the same HTTPS API:
 
 - Android `.env`: `API_BASE_URL=https://<api-host>/api/v1/`
 - Web: `VITE_API_BASE_URL=https://<api-host>` (or leave empty if nginx proxies `/api`)
-- iOS: `AppConfig.origin` in `ios/AdventHearts/API/Config.swift`
+- iOS: Info.plist `API_ORIGIN` (`https://<api-host>`). Debug builds still use `http://127.0.0.1:5000`.
+
+Production does not seed demo accounts. Demo login buttons are hidden in release / production web builds. Legal pages: `/legal/terms` and `/legal/privacy`.

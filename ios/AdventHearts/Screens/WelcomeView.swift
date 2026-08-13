@@ -35,11 +35,22 @@ struct WelcomeView: View {
                     .buttonStyle(RoseButton())
                 Button("I Already Have an Account") { mode = "login" }
                     .buttonStyle(GhostButton())
+                Text("By creating an account you agree to the AdventHearts Terms of Service and Privacy Policy.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 16) {
+                    Link("Terms", destination: AppConfig.termsURL)
+                    Link("Privacy", destination: AppConfig.privacyURL)
+                }
+                .font(.caption)
+                #if DEBUG
                 HStack {
                     Button("Member (Joshua)") { Task { busy = true; await session.demoMember(); busy = false } }
                     Button("Admin") { Task { busy = true; await session.demoAdmin(); busy = false } }
                 }
                 .font(.footnote)
+                #endif
             } else if mode == "login" {
                 TextField("Email", text: $email).textInputAutocapitalization(.never)
                 SecureField("Password", text: $password)

@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, saveSession } from './api';
 import type { AuthUser } from './types';
 
@@ -95,17 +96,26 @@ export default function Welcome({ onAuthed }: { onAuthed: (user: AuthUser) => vo
             <button className="btn btn-ghost" onClick={() => setMode('login')} disabled={busy}>
               I Already Have an Account
             </button>
-            <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
-              Quick demo
+            <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 8 }}>
+              By creating an account you agree to the{' '}
+              <Link to="/legal/terms">Terms of Service</Link> and{' '}
+              <Link to="/legal/privacy">Privacy Policy</Link>.
             </p>
-            <div className="row">
-              <button className="btn btn-ghost" onClick={() => demo('member')} disabled={busy}>
-                Member (Joshua)
-              </button>
-              <button className="btn btn-ghost" onClick={() => demo('admin')} disabled={busy}>
-                Admin
-              </button>
-            </div>
+            {import.meta.env.DEV && (
+              <>
+                <p className="muted" style={{ textAlign: 'center', marginTop: 12 }}>
+                  Quick demo (dev only)
+                </p>
+                <div className="row">
+                  <button className="btn btn-ghost" onClick={() => demo('member')} disabled={busy}>
+                    Member (Joshua)
+                  </button>
+                  <button className="btn btn-ghost" onClick={() => demo('admin')} disabled={busy}>
+                    Admin
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

@@ -19,6 +19,7 @@ Endpoints enforce mandatory server-side middleware:
 ## 3. Input Sanitization & Threat Protection
 - **Injection Prevention**: Prisma ORM uses parameterized queries exclusively.
 - **XSS & HTML Injection**: User bio and messages are stripped of raw HTML/script tags via Zod validators.
+- **Production start**: refuses weak JWT secrets and missing `PUBLIC_BASE_URL`. Demo seed is off unless `ALLOW_DEMO_SEED=true`.
 - **Rate Limiting**:
   - Auth Login: 5 requests per minute per IP.
   - Swiping / Likes: 100 requests per hour (Free Users) / Unlimited (Premium Users).

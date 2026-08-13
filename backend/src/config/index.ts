@@ -19,13 +19,46 @@ export const config = {
   emailApiKey: process.env.EMAIL_API_KEY || '',
   emailFrom: process.env.EMAIL_FROM || 'AdventHearts <no-reply@adventhearts.com>',
   publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
+  corsOrigins: (process.env.CORS_ORIGIN || process.env.PUBLIC_BASE_URL || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+  allowDemoSeed: process.env.ALLOW_DEMO_SEED === 'true',
+  requireEmailVerification:
+    process.env.REQUIRE_EMAIL_VERIFICATION === 'true' ||
+    (process.env.NODE_ENV === 'production' &&
+      Boolean(process.env.EMAIL_API_KEY) &&
+      process.env.EMAIL_API_KEY !== 'replace_me'),
 };
 
-if (process.env.NODE_ENV === 'production') {
-  const weak = ['change_me', 'adventhearts_dev', 'super_secret'];
-  if (!process.env.JWT_SECRET || weak.some((w) => process.env.JWT_SECRET!.includes(w))) {
-    console.warn('WARNING: Set a strong JWT_SECRET before going live.');
+const WEAK_SECRET = /change_me|adventhearts_dev|super_secret|password|secret123/i;
+
+export function assertLiveConfig() {
+  if (config.env !== 'production') return;
+  const problems: string[] = [];
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32 || WEAK_SECRET.test(process.env.JWT_SECRET)) {
+    problems.push('JWT_SECRET must be a strong random string of at least 32 characters.');
   }
+  if (
+    !process.env.JWT_REFRESH_SECRET ||
+    process.env.JWT_REFRESH_SECRET.length < 32 ||
+    WEAK_SECRET.test(process.env.JWT_REFRESH_SECRET)
+  ) {
+    problems.push('JWT_REFRESH_SECRET must be a strong random string of at least 32 characters.');
+  }
+  if (!config.publicBaseUrl) {
+    problems.push('PUBLIC_BASE_URL must be the public HTTPS origin, e.g. https://api.example.com');
+  } else if (!config.publicBaseUrl.startsWith('https://') && process.env.ALLOW_HTTP !== 'true') {
+    problems.push('PUBLIC_BASE_URL must use https:// (set ALLOW_HTTP=true only behind a TLS terminator for testing).');
+  }
+  if (problems.length) {
+    throw new Error(`Refusing to start in production:\n- ${problems.join('\n- ')}`);
+  }
+}
+
+export function corsOriginOption(): boolean | string[] {
+  if (config.env !== 'production') return true;
+  return config.corsOrigins.length ? config.corsOrigins : false;
 }
 
 export const SUBSCRIPTION_PLANS = [

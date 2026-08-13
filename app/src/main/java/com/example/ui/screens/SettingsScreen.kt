@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -61,10 +63,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.ui.components.SubscriptionBadge
 import com.example.ui.components.VerificationBadge
 import com.example.ui.theme.GoldTertiary
@@ -83,6 +87,12 @@ fun SettingsScreen(
 ) {
     val currentProfile by authViewModel.currentProfile.collectAsState()
     val isPremium by subscriptionViewModel.isPremium.collectAsState()
+    val context = LocalContext.current
+
+    fun openLegal(path: String) {
+        val base = BuildConfig.LEGAL_BASE_URL.trimEnd('/')
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$base$path")))
+    }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -408,9 +418,9 @@ fun SettingsScreen(
             // 6. LEGAL & ABOUT
             SettingsHeader("Legal & Support", icon = Icons.Filled.Security)
             SettingsCard {
-                SettingsActionRow("Terms of Service") { }
+                SettingsActionRow("Terms of Service") { openLegal("/legal/terms") }
                 SettingsDivider()
-                SettingsActionRow("Privacy Policy") { }
+                SettingsActionRow("Privacy Policy") { openLegal("/legal/privacy") }
                 SettingsDivider()
                 SettingsActionRow("Restore Purchases") { }
                 SettingsDivider()

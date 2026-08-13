@@ -7,6 +7,7 @@ import { dobFromAge, stringifyStringArray } from '../utils/json';
 import { toAuthPayload, toProfileDto } from '../utils/mappers';
 import { EmailService } from '../services/email.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { config } from '../config';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -81,7 +82,7 @@ export class AuthController {
       await EmailService.sendVerification(user.email, verificationToken);
 
       const tokens = AuthService.generateTokens({ userId: user.id, email: user.email, role: user.role });
-      return ok(res, { ...toAuthPayload(user, body.fullName, tokens), verificationToken }, 201);
+      return ok(res, toAuthPayload(user, body.fullName, tokens), 201);
     } catch (err: any) {
       if (err.name === 'ZodError') {
         return fail(res, 'VALIDATION_ERROR', err.errors?.[0]?.message || 'Invalid input data.');
@@ -109,6 +110,10 @@ export class AuthController {
       const isValidPassword = await AuthService.verifyPassword(user.passwordHash, password);
       if (!isValidPassword) {
         return fail(res, 'INVALID_CREDENTIALS', 'Invalid email or password.', 401);
+      }
+
+      if (config.requireEmailVerification && !user.isEmailVerified) {
+        return fail(res, 'EMAIL_NOT_VERIFIED', 'Verify your email before signing in. Check your inbox for the AdventHearts link.', 403);
       }
 
       await prisma.user.update({ where: { id: user.id }, data: { lastActiveAt: new Date() } });

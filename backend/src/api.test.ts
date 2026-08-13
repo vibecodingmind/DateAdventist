@@ -260,4 +260,24 @@ describe('AdventHearts API', () => {
     });
     expect(login.status).toBe(401);
   });
+
+  it('publishes terms and privacy', async () => {
+    const terms = await request(app).get('/legal/terms');
+    expect(terms.status).toBe(200);
+    expect(terms.text).toMatch(/18 years old/i);
+    const privacy = await request(app).get('/api/v1/legal/privacy');
+    expect(privacy.status).toBe(200);
+    expect(privacy.body.data.text).toMatch(/Argon2id/i);
+  });
+
+  it('does not return email verification tokens in the register payload', async () => {
+    const res = await request(app).post('/api/v1/auth/register').send({
+      email: 'noleak@adventhearts.com',
+      password: 'Password123!',
+      fullName: 'No Leak',
+      age: 26,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.verificationToken).toBeUndefined();
+  });
 });
