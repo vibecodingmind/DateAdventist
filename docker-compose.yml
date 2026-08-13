@@ -20,6 +20,16 @@ services:
       - adventhearts-data:/app/data
       - adventhearts-uploads:/app/uploads
 
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE_URL: ""
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
 volumes:
   adventhearts-data:
   adventhearts-uploads:

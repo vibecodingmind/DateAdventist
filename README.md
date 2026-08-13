@@ -1,18 +1,24 @@
 # AdventHearts
 
-Faith-first Seventh-day Adventist dating app: **Android (Kotlin/Compose)** client plus a **Node.js/Express** backend.
+Faith-first Seventh-day Adventist dating: **one API**, three clients.
 
-## What this repo contains
+```
+                 Node API  (backend/)   /api/v1 + Socket.IO
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+      Android           Web app           iOS
+      app/              web/              ios/
+      Kotlin/Compose    React/Vite        SwiftUI
+```
 
 | Layer | Location | Role |
 | :--- | :--- | :--- |
-| Android app | `app/` | Compose UI for auth, discovery, likes, matches, chat, safety, subscriptions, and admin |
-| Backend API | `backend/` | REST + Socket.IO API with Prisma persistence, JWT auth, matching, and RBAC |
-| Local cache | Room in `app/src/main/java/com/example/data/local` | Offline demo data and cache of server responses |
+| API | `backend/` | JWT auth, discovery, likes, matches, chat, photos, Stripe, safety, admin |
+| Android | `app/` | Compose client (Room cache if the API is offline) |
+| Web | `web/` | React client at http://localhost:5173 |
+| iOS | `ios/` | SwiftUI Xcode project for your Mac |
 
-The Android screens were previously backed only by a local Room database. They now call `/api/v1/*` and keep Room as an offline fallback.
-
-## Run the backend
+## 1. Start the API
 
 ```bash
 cd backend
@@ -24,56 +30,53 @@ npm run seed
 npm run dev
 ```
 
-API: `http://localhost:5000`  
-Health: `GET /health`
-
-### Demo accounts (after seed)
+Health: `GET http://localhost:5000/health`
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
 | Member | `john.adventist@gmail.com` | `password123` |
 | Admin | `admin@adventhearts.com` | `AdminPass2026!` |
-| Super admin | `superadmin@adventhearts.com` | `AdminPass2026!` |
-
-### Tests
 
 ```bash
-cd backend
-npm test
+cd backend && npm test
 ```
 
-## Android client
+## 2. Web
 
-Point the app at the API with `API_BASE_URL` in `.env` (see `.env.example`).
+```bash
+cd web
+npm install
+npm run dev
+```
 
-- Android emulator: `http://10.0.2.2:5000/api/v1/`
-- Physical device on the same network: `http://<your-lan-ip>:5000/api/v1/`
+http://localhost:5173 — Vite proxies `/api` to the Node server.
 
-Open the project in Android Studio and run the `app` configuration.
+## 3. Android
 
-If the API is unreachable, the app still runs against the local Room demo database (Joshua / Admin demo switcher on the welcome screen).
+Set `API_BASE_URL` in `.env` (see `.env.example`).
 
-## Core API
+- Emulator: `http://10.0.2.2:5000/api/v1/`
+- Physical device: `http://<your-lan-ip>:5000/api/v1/`
 
-- `POST /api/v1/auth/register` `POST /api/v1/auth/login` `GET /api/v1/auth/me`
-- `POST /api/v1/auth/forgot-password` `POST /api/v1/auth/reset-password` `POST /api/v1/auth/verify-email`
-- `POST /api/v1/auth/delete-account`
-- `GET|PUT /api/v1/profile` `POST /api/v1/profile/photo`
-- `GET /api/v1/discover` `POST /api/v1/discover/like` `POST /api/v1/discover/pass`
-- `GET /api/v1/likes` `GET /api/v1/matches` `GET|POST /api/v1/matches/:id/messages` `DELETE /api/v1/matches/:id`
-- `POST /api/v1/safety/report` `POST /api/v1/safety/block`
-- `GET /api/v1/subscriptions/plans` `GET /api/v1/subscriptions/current` `POST /api/v1/subscriptions/checkout`
-- `POST /api/v1/subscriptions/webhook` (Stripe) `POST /api/v1/subscriptions/confirm-payment` (dev only)
-- `GET /api/v1/admin/dashboard` (moderator+) with server-side RBAC
+Open the repo in Android Studio and run `app`.
 
-Realtime events (Socket.IO, JWT in `auth.token`): `match:new`, `like:new`, `chat:message`.
+## 4. iOS (Mac + Xcode)
 
-## Docker
+See [ios/README.md](ios/README.md). Open `ios/AdventHearts.xcodeproj`, pick your signing team, run on a simulator. The simulator uses `http://127.0.0.1:5000`.
+
+## Docker (API + web)
 
 ```bash
 docker compose up --build
 ```
 
+- API: http://localhost:5000
+- Web: http://localhost:8080
+
 ## Deploy
 
-See [DEPLOYMENT.md](DEPLOYMENT.md). After the API is hosted, set `API_BASE_URL` to `https://<your-host>/api/v1/` in the Android `.env`.
+See [DEPLOYMENT.md](DEPLOYMENT.md). Point every client at the same HTTPS API:
+
+- Android `.env`: `API_BASE_URL=https://<api-host>/api/v1/`
+- Web: `VITE_API_BASE_URL=https://<api-host>` (or leave empty if nginx proxies `/api`)
+- iOS: `AppConfig.origin` in `ios/AdventHearts/API/Config.swift`
