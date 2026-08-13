@@ -25,4 +25,8 @@ backend/dist/
 backend/**/*.db
 backend/**/*.db-journal
 backend/uploads/
+web/node_modules/
+web/dist/
+ios/**/xcuserdata/
+ios/**/DerivedData/
 
