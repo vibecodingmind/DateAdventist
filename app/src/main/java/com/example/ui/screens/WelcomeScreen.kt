@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,8 +63,11 @@ fun WelcomeScreen(
     val authError by authViewModel.authError.collectAsState()
 
     var showLoginForm by remember { mutableStateOf(false) }
+    var showForgotPassword by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var resetToken by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -213,7 +217,14 @@ fun WelcomeScreen(
                             Text("Sign In")
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = { showForgotPassword = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("button_forgot_password")
+                        ) {
+                            Text("Forgot password?")
+                        }
 
                         TextButton(
                             onClick = { showLoginForm = false },
@@ -286,6 +297,65 @@ fun WelcomeScreen(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showForgotPassword) {
+            AlertDialog(
+                onDismissRequest = { showForgotPassword = false },
+                title = { Text("Reset password") },
+                text = {
+                    Column {
+                        Text(
+                            "Enter your email to receive a reset token, then paste the token and choose a new password.",
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email Address") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { authViewModel.forgotPassword(email) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Send reset email")
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = resetToken,
+                            onValueChange = { resetToken = it },
+                            label = { Text("Reset token") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = newPassword,
+                            onValueChange = { newPassword = it },
+                            label = { Text("New password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            authViewModel.resetPassword(resetToken, newPassword)
+                            showForgotPassword = false
+                        }
+                    ) {
+                        Text("Update password")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showForgotPassword = false }) {
+                        Text("Close")
+                    }
+                }
+            )
         }
     }
 }

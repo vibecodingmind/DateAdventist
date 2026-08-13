@@ -459,7 +459,7 @@ fun SettingsScreen(
                     Button(
                         onClick = {
                             showDeleteDialog = false
-                            authViewModel.logout()
+                            authViewModel.deleteAccount()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                     ) {

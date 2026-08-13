@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +40,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +74,15 @@ fun SubscriptionScreen(
     val subMessage by subscriptionViewModel.subSuccessMessage.collectAsState()
     val checkoutUrl by subscriptionViewModel.checkoutUrl.collectAsState()
     val paymentProvider by subscriptionViewModel.paymentProvider.collectAsState()
+    val isProcessing by subscriptionViewModel.isProcessing.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(checkoutUrl) {
+        val url = checkoutUrl
+        if (!url.isNullOrBlank() && url.startsWith("http")) {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
+    }
 
     var phoneNumber by remember { mutableStateOf("+1 (555) 019-2834") }
     var isIncognito by remember { mutableStateOf(false) }
@@ -116,7 +129,18 @@ fun SubscriptionScreen(
                     Text(text = subMessage!!, fontSize = 13.sp, color = GoldTertiary, fontWeight = FontWeight.Bold)
                     if (checkoutUrl != null) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "Checkout URL: $checkoutUrl", fontSize = 11.sp, color = Color.White.copy(alpha = 0.7f))
+                        Text(
+                            text = if (checkoutUrl!!.startsWith("http")) "Opening checkout in your browser…" else checkoutUrl!!,
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { subscriptionViewModel.onCheckoutReturned() },
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldTertiary)
+                        ) {
+                            Text("I’ve finished paying — refresh membership", color = Color.Black, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -201,6 +225,7 @@ fun SubscriptionScreen(
         // Checkout Button Triggered by Backend
         Button(
             onClick = { subscriptionViewModel.initiateBackendCheckout() },
+            enabled = !isProcessing,
             shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
             modifier = Modifier

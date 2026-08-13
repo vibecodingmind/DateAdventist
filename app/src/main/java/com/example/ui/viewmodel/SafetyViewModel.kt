@@ -1,9 +1,11 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.ReportEntity
+import com.example.data.remote.AuthTokenManager
 import com.example.data.repository.AdventHeartsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +18,7 @@ class SafetyViewModel(application: Application) : AndroidViewModel(application) 
 
     private val repo = AdventHeartsRepository.getInstance(application)
 
-    val blockedUserIds: StateFlow<List<String>> = repo.getBlockedUserIds("usr_me")
+    val blockedUserIds: StateFlow<List<String>> = repo.getBlockedUserIds(AuthTokenManager.currentUserId ?: "usr_me")
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -35,21 +37,27 @@ class SafetyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun reportUser(reportedUserId: String, reason: String, details: String) {
         viewModelScope.launch {
-            repo.reportUser("usr_me", reportedUserId, reason, details)
+            repo.reportUser(AuthTokenManager.currentUserId ?: "usr_me", reportedUserId, reason, details)
             _safetyMessage.value = "Thank you. Your report has been submitted to AdventHearts Moderation for immediate review."
         }
     }
 
     fun blockUser(blockedUserId: String) {
         viewModelScope.launch {
-            repo.blockUser("usr_me", blockedUserId)
+            repo.blockUser(AuthTokenManager.currentUserId ?: "usr_me", blockedUserId)
             _safetyMessage.value = "User blocked. You will no longer see or receive messages from this profile."
         }
     }
 
     fun submitSelfieVerification(selfieUri: String) {
         viewModelScope.launch {
-            val prof = repo.getProfileSync("usr_me")
+            try {
+                val uri = Uri.parse(selfieUri)
+                repo.uploadPhoto(getApplication(), uri, "verification")
+            } catch (_: Exception) {
+                Unit
+            }
+            val prof = repo.getProfileSync(AuthTokenManager.currentUserId ?: "usr_me")
             if (prof != null) {
                 val updated = prof.copy(
                     verificationStatus = "PENDING",

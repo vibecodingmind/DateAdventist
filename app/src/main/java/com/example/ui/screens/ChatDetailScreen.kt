@@ -154,11 +154,20 @@ fun ChatDetailScreen(
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Unmatch", color = Color.White) },
+                            onClick = {
+                                showMenu = false
+                                chatMatchWithProfile?.match?.matchId?.let { matchesViewModel.unmatch(it) }
+                                onBack()
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Block & Unmatch User", color = Color(0xFFFF3366)) },
                             onClick = {
                                 showMenu = false
                                 if (otherProfile != null) {
                                     safetyViewModel.blockUser(otherProfile.userId)
+                                    chatMatchWithProfile?.match?.matchId?.let { matchesViewModel.unmatch(it) }
                                     onBack()
                                 }
                             }
@@ -235,7 +244,7 @@ fun ChatDetailScreen(
                 }
 
                 items(messages) { msg ->
-                    val isMe = msg.senderId == "usr_me"
+                    val isMe = msg.senderId == matchesViewModel.currentUserId()
                     MessageBubble(message = msg, isFromMe = isMe)
                 }
             }

@@ -12,8 +12,12 @@ class AuthInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         val builder = originalRequest.newBuilder()
-            .header("Content-Type", "application/json")
             .header("Accept", "application/json")
+
+        val isMultipart = originalRequest.body is okhttp3.MultipartBody
+        if (!isMultipart) {
+            builder.header("Content-Type", "application/json")
+        }
 
         AuthTokenManager.accessToken?.let { token ->
             if (token.isNotBlank()) {

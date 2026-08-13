@@ -3,8 +3,10 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.repository.AdventHeartsRepository
 import com.example.data.remote.AdventHeartsApiClient
+import com.example.data.remote.ApiResponse
+import com.example.data.remote.AuthTokenManager
+import com.example.data.repository.AdventHeartsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,16 +17,16 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
     private val repo = AdventHeartsRepository.getInstance(application)
     private val apiClient = AdventHeartsApiClient()
 
-    private val _isPremium = MutableStateFlow(true)
+    private val _isPremium = MutableStateFlow(false)
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
 
-    private val _userTier = MutableStateFlow("GOLD")
+    private val _userTier = MutableStateFlow("FREE")
     val userTier: StateFlow<String> = _userTier.asStateFlow()
 
-    private val _selectedPlan = MutableStateFlow("GOLD") // PLUS, GOLD, PLATINUM
+    private val _selectedPlan = MutableStateFlow("GOLD")
     val selectedPlan: StateFlow<String> = _selectedPlan.asStateFlow()
 
-    private val _paymentProvider = MutableStateFlow("stripe") // stripe, paypal
+    private val _paymentProvider = MutableStateFlow("stripe")
     val paymentProvider: StateFlow<String> = _paymentProvider.asStateFlow()
 
     private val _checkoutUrl = MutableStateFlow<String?>(null)
@@ -33,13 +35,14 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
     private val _subSuccessMessage = MutableStateFlow<String?>(null)
     val subSuccessMessage: StateFlow<String?> = _subSuccessMessage.asStateFlow()
 
+    private val _isProcessing = MutableStateFlow(false)
+    val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     init {
-        viewModelScope.launch {
-            val prof = repo.getProfileSync("usr_me")
-            if (prof != null) {
-                _isPremium.value = prof.isPremium
-            }
-        }
+        refreshSubscription()
     }
 
     fun selectPlan(plan: String) {
@@ -50,32 +53,55 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
         _paymentProvider.value = provider
     }
 
+    fun refreshSubscription() {
+        viewModelScope.launch {
+            when (val remote = apiClient.fetchCurrentSubscription()) {
+                is ApiResponse.Success -> {
+                    _isPremium.value = remote.data.active
+                    _userTier.value = remote.data.tier
+                }
+                else -> {
+                    val userId = AuthTokenManager.currentUserId
+                    val prof = if (userId != null) repo.getProfileSync(userId) else null
+                    if (prof != null) {
+                        _isPremium.value = prof.isPremium
+                        _userTier.value = if (prof.isPremium) "GOLD" else "FREE"
+                    }
+                }
+            }
+        }
+    }
+
     fun initiateBackendCheckout() {
         viewModelScope.launch {
-            // Trigger Stripe or PayPal checkout session from backend
+            _isProcessing.value = true
+            _error.value = null
             val provider = _paymentProvider.value
             val plan = _selectedPlan.value
-            val txId = "tx_${provider}_${System.currentTimeMillis()}"
-            val generatedUrl = if (provider == "stripe") {
-                "https://checkout.stripe.com/pay/cs_test_adventhearts_$txId"
-            } else {
-                "https://www.paypal.com/checkoutnow?token=EC-AH_$txId"
+            val planId = "plan_${plan.lowercase()}_monthly"
+            when (val remote = apiClient.initiateCheckout(planId, provider)) {
+                is ApiResponse.Success -> {
+                    _checkoutUrl.value = remote.data.checkoutUrl
+                    _subSuccessMessage.value =
+                        "Complete checkout in your browser, then tap “I’ve finished paying” to refresh your membership."
+                }
+                is ApiResponse.Error -> {
+                    _error.value = remote.message
+                    _subSuccessMessage.value = "Could not start checkout: ${remote.message}"
+                }
             }
-            _checkoutUrl.value = generatedUrl
-
-            // Simulate backend webhook confirmation / immediate activation
-            _isPremium.value = true
-            _userTier.value = plan
-            val prof = repo.getProfileSync("usr_me")
-            if (prof != null) {
-                repo.updateProfile(prof.copy(isPremium = true))
-            }
-            _subSuccessMessage.value = "Checkout initiated with ${provider.uppercase()}! Subscription updated to $plan."
+            _isProcessing.value = false
         }
+    }
+
+    fun onCheckoutReturned() {
+        refreshSubscription()
+        _subSuccessMessage.value = "Checking your membership status…"
     }
 
     fun dismissMessage() {
         _subSuccessMessage.value = null
         _checkoutUrl.value = null
+        _error.value = null
     }
 }

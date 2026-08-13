@@ -1,25 +1,7 @@
 {
-  "hosting": {
-    "public": "backend/public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/api/v1/**",
-        "function": "api"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
   "appdistribution": {
-    "app": "1:709051202870:android:adventhearts",
-    "groups": ["internal-testers", "qa-team"],
+    "app": "replace_me",
+    "groups": ["internal-testers"],
     "releaseNotesFile": "RELEASE_NOTES.md"
   }
 }

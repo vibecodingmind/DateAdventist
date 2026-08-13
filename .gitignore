@@ -20,3 +20,9 @@ debug.keystore.base64
 .build-outputs/
 *.apk
 *.aab
+backend/node_modules/
+backend/dist/
+backend/**/*.db
+backend/**/*.db-journal
+backend/uploads/
+

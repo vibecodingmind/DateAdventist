@@ -41,6 +41,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,7 @@ fun ProfileScreen(
     onNavigateToSettings: () -> Unit = {}
 ) {
     val currentProfile by authViewModel.currentProfile.collectAsState()
+    val uploadedPhotoUrl by authViewModel.uploadedPhotoUrl.collectAsState()
     var isEditing by remember { mutableStateOf(false) }
     var showCameraDialog by remember { mutableStateOf(false) }
 
@@ -114,14 +116,14 @@ fun ProfileScreen(
     if (isEditing) {
         EditProfileView(
             profile = prof,
+            uploadedPhotoUrl = uploadedPhotoUrl,
             onSave = { updated ->
                 authViewModel.updateProfileData(updated)
                 isEditing = false
             },
-            onCancel = { isEditing = false }
-        ) {
-            safetyViewModel.submitSelfieVerification(it)
-        }
+            onCancel = { isEditing = false },
+            onUploadPhoto = { uri -> authViewModel.uploadProfilePhoto(uri) }
+        )
     } else {
         Column(
             modifier = Modifier
@@ -570,9 +572,10 @@ fun ProfileScreen(
 @Composable
 private fun EditProfileView(
     profile: ProfileEntity,
+    uploadedPhotoUrl: String?,
     onSave: (ProfileEntity) -> Unit,
     onCancel: () -> Unit,
-    onSubmitSelfie: (String) -> Unit
+    onUploadPhoto: (android.net.Uri) -> Unit
 ) {
     var fullName by remember { mutableStateOf(profile.fullName) }
     var bio by remember { mutableStateOf(profile.bio) }
@@ -581,6 +584,12 @@ private fun EditProfileView(
     var occupation by remember { mutableStateOf(profile.occupation) }
     var education by remember { mutableStateOf(profile.education) }
     var primaryPhoto by remember { mutableStateOf(profile.primaryPhoto) }
+
+    LaunchedEffect(uploadedPhotoUrl) {
+        if (!uploadedPhotoUrl.isNullOrBlank()) {
+            primaryPhoto = uploadedPhotoUrl
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -637,6 +646,7 @@ private fun EditProfileView(
             ProfilePhotoCaptureDialog(
                 onDismissRequest = { showProfileCamera = false },
                 onPhotoCaptured = { uri ->
+                    onUploadPhoto(uri)
                     primaryPhoto = uri.toString()
                     showProfileCamera = false
                 }
@@ -683,7 +693,11 @@ private fun EditProfileView(
                             localChurch = localChurch,
                             favoriteVerse = favoriteVerse,
                             occupation = occupation,
-                            primaryPhoto = primaryPhoto
+                            primaryPhoto = if (primaryPhoto.startsWith("content:") || primaryPhoto.startsWith("file:")) {
+                                uploadedPhotoUrl ?: profile.primaryPhoto
+                            } else {
+                                primaryPhoto
+                            }
                         )
                     )
                 }

@@ -10,7 +10,15 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
 
-    private const val DEFAULT_BASE_URL = "https://ais-dev-76mcn3mxut2jc3whyrmhu6-709051202870.europe-west2.run.app/api/v1/"
+    private val DEFAULT_BASE_URL: String
+        get() {
+            val configured = try {
+                com.example.BuildConfig.API_BASE_URL
+            } catch (_: Throwable) {
+                "http://10.0.2.2:5000/api/v1/"
+            }
+            return if (configured.endsWith("/")) configured else "$configured/"
+        }
 
     @Volatile
     private var baseUrl: String = DEFAULT_BASE_URL

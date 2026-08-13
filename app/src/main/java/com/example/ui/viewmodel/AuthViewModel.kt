@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.ProfileEntity
@@ -37,10 +38,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
 
+    private val _uploadedPhotoUrl = MutableStateFlow<String?>(null)
+    val uploadedPhotoUrl: StateFlow<String?> = _uploadedPhotoUrl.asStateFlow()
+
     init {
         com.example.data.remote.AuthTokenManager.init(application)
-        val savedUserId = com.example.data.remote.AuthTokenManager.currentUserId ?: "usr_me"
-        _currentUserId.value = savedUserId
+        _currentUserId.value = com.example.data.remote.AuthTokenManager.currentUserId
 
         com.example.data.remote.AuthTokenManager.setOnUnauthorizedListener {
             logout()
@@ -48,6 +51,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             repo.seedDatabaseIfEmpty()
+            if (_currentUserId.value != null && !com.example.data.remote.AuthTokenManager.accessToken.isNullOrBlank()) {
+                repo.syncFromBackend()
+            }
         }
     }
 
@@ -58,6 +64,21 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _authError.value = "Please enter both email and password."
                 return@launch
             }
+
+            when (val remote = repo.loginRemote(email.trim(), pass)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _currentUserId.value = remote.data.userId
+                    _onboardingStep.value = 0
+                    return@launch
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    if (remote.code != "NETWORK_ERROR") {
+                        _authError.value = remote.message
+                        return@launch
+                    }
+                }
+            }
+
             val account = repo.getUserAccountByEmail(email.trim())
             if (account != null) {
                 val dummyJwtToken = "jwt_token_${account.userId}_${System.currentTimeMillis()}"
@@ -86,6 +107,26 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _authError.value = "AdventHearts is strictly for members 18 years of age or older."
                 return@launch
             }
+
+            when (val remote = repo.registerRemote(fullName, email.trim(), pass, age, gender, country, city, intention)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    val newId = remote.data.userId
+                    val userAcc = UserAccountEntity(
+                        userId = newId,
+                        email = email.trim(),
+                        passwordHash = pass,
+                        role = "USER",
+                        isEmailVerified = true
+                    )
+                    val newProfile = defaultNewProfile(newId, fullName, age, gender, country, city, intention)
+                    repo.registerUser(userAcc, newProfile)
+                    _currentUserId.value = newId
+                    _onboardingStep.value = 1
+                    return@launch
+                }
+                else -> Unit
+            }
+
             val existing = repo.getUserAccountByEmail(email.trim())
             if (existing != null) {
                 _authError.value = "An account with this email already exists."
@@ -100,48 +141,56 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 role = "USER",
                 isEmailVerified = true
             )
-
-            val newProfile = ProfileEntity(
-                userId = newId,
-                fullName = fullName,
-                age = age,
-                gender = gender,
-                country = country,
-                city = city,
-                occupation = "Adventist Professional",
-                education = "University",
-                bio = "Faithful Adventist looking for a Christian partner to share Sabbath, life, and ministry.",
-                relationshipIntention = intention,
-                primaryPhoto = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-                photoUrls = listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"),
-                isVerified = false,
-                verificationStatus = "NOT_VERIFIED",
-                isPremium = false,
-                adventistAffiliation = "Seventh-day Adventist Member",
-                yearsAsAdventist = age - 5,
-                localChurch = "Local SDA Church",
-                isBaptized = true,
-                faithImportance = "Central to everything I do",
-                churchInvolvement = "Active",
-                sabbathObservance = listOf("Church Service", "Sunset to Sunset Rest", "Nature Walks"),
-                ministryInterests = listOf("Youth", "Bible Study"),
-                personalBibleStudy = "Daily",
-                favoriteVerse = "John 3:16",
-                diet = "Vegetarian",
-                alcohol = "None / Abstain",
-                smoking = "Never",
-                wantsChildren = "Yes, definitely",
-                hasChildren = false,
-                interests = listOf("Sabbath Nature Walks", "Bible Study", "A cappella Music")
-            )
-
+            val newProfile = defaultNewProfile(newId, fullName, age, gender, country, city, intention)
             repo.registerUser(userAcc, newProfile)
             val dummyJwtToken = "jwt_token_${newId}_${System.currentTimeMillis()}"
             com.example.data.remote.AuthTokenManager.saveTokens(dummyJwtToken, "refresh_$dummyJwtToken", newId)
             _currentUserId.value = newId
-            _onboardingStep.value = 1 // Proceed to profile completion steps
+            _onboardingStep.value = 1
         }
     }
+
+    private fun defaultNewProfile(
+        newId: String,
+        fullName: String,
+        age: Int,
+        gender: String,
+        country: String,
+        city: String,
+        intention: String
+    ) = ProfileEntity(
+        userId = newId,
+        fullName = fullName,
+        age = age,
+        gender = gender,
+        country = country,
+        city = city,
+        occupation = "Adventist Professional",
+        education = "University",
+        bio = "Faithful Adventist looking for a Christian partner to share Sabbath, life, and ministry.",
+        relationshipIntention = intention,
+        primaryPhoto = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+        photoUrls = listOf("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"),
+        isVerified = false,
+        verificationStatus = "NOT_VERIFIED",
+        isPremium = false,
+        adventistAffiliation = "Seventh-day Adventist Member",
+        yearsAsAdventist = age - 5,
+        localChurch = "Local SDA Church",
+        isBaptized = true,
+        faithImportance = "Central to everything I do",
+        churchInvolvement = "Active",
+        sabbathObservance = listOf("Church Service", "Sunset to Sunset Rest", "Nature Walks"),
+        ministryInterests = listOf("Youth", "Bible Study"),
+        personalBibleStudy = "Daily",
+        favoriteVerse = "John 3:16",
+        diet = "Vegetarian",
+        alcohol = "None / Abstain",
+        smoking = "Never",
+        wantsChildren = "Yes, definitely",
+        hasChildren = false,
+        interests = listOf("Sabbath Nature Walks", "Bible Study", "A cappella Music")
+    )
 
     fun setOnboardingStep(step: Int) {
         _onboardingStep.value = step
@@ -154,16 +203,81 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchAccount(userId: String) {
-        val dummyJwtToken = "jwt_token_${userId}_${System.currentTimeMillis()}"
-        com.example.data.remote.AuthTokenManager.saveTokens(dummyJwtToken, "refresh_$dummyJwtToken", userId)
-        _currentUserId.value = userId
-        _onboardingStep.value = 0
+        viewModelScope.launch {
+            val demoCredentials = when (userId) {
+                "usr_me" -> "john.adventist@gmail.com" to "password123"
+                "usr_admin" -> "admin@adventhearts.com" to "AdminPass2026!"
+                else -> null
+            }
+            if (demoCredentials != null) {
+                val remote = repo.loginRemote(demoCredentials.first, demoCredentials.second)
+                if (remote is com.example.data.remote.ApiResponse.Success) {
+                    _currentUserId.value = remote.data.userId
+                    _onboardingStep.value = 0
+                    return@launch
+                }
+            }
+            val dummyJwtToken = "jwt_token_${userId}_${System.currentTimeMillis()}"
+            com.example.data.remote.AuthTokenManager.saveTokens(dummyJwtToken, "refresh_$dummyJwtToken", userId)
+            _currentUserId.value = userId
+            _onboardingStep.value = 0
+        }
     }
 
     fun logout() {
         com.example.data.remote.AuthTokenManager.clearTokens()
         _currentUserId.value = null
         _onboardingStep.value = 0
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            repo.deleteAccountRemote()
+            logout()
+        }
+    }
+
+    fun forgotPassword(email: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            when (val result = repo.forgotPassword(email.trim())) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _authError.value = "If that email is registered, a reset link has been sent."
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = if (result.code == "NETWORK_ERROR") {
+                        "If that email is registered, a reset link has been sent."
+                    } else result.message
+                }
+            }
+        }
+    }
+
+    fun resetPassword(token: String, newPassword: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            when (val result = repo.resetPassword(token.trim(), newPassword)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _authError.value = "Password updated. You can sign in now."
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = result.message
+                }
+            }
+        }
+    }
+
+    fun uploadProfilePhoto(uri: Uri) {
+        viewModelScope.launch {
+            when (val result = repo.uploadPhoto(getApplication(), uri, "profile")) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _uploadedPhotoUrl.value = result.data.primaryPhoto
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = result.message
+                }
+            }
+        }
     }
 
     fun clearError() {

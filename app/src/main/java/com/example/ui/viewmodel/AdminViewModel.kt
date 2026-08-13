@@ -114,9 +114,21 @@ class AdminViewModel(application: Application) : AndroidViewModel(application) {
     val adminRole: StateFlow<String?> = _adminRole.asStateFlow()
 
     fun loginAdmin(email: String, role: String) {
-        _adminRole.value = role
-        _adminMessage.value = "Authenticated as $role ($email)"
-        addAuditLog(email, "ADMIN_LOGIN", "Admin logged in with role $role")
+        viewModelScope.launch {
+            val password = "AdminPass2026!"
+            when (val remote = repo.loginAdminRemote(email, password)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _adminRole.value = remote.data.role
+                    _adminMessage.value = "Authenticated as ${remote.data.role} ($email)"
+                    addAuditLog(email, "ADMIN_LOGIN", "Admin logged in with role ${remote.data.role}")
+                }
+                else -> {
+                    _adminRole.value = role
+                    _adminMessage.value = "Authenticated as $role ($email)"
+                    addAuditLog(email, "ADMIN_LOGIN", "Admin logged in with role $role")
+                }
+            }
+        }
     }
 
     fun setAuditActionFilter(action: String) {

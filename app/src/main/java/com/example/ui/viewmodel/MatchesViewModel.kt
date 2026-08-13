@@ -7,6 +7,7 @@ import com.example.data.local.LikeEntity
 import com.example.data.local.MatchEntity
 import com.example.data.local.MessageEntity
 import com.example.data.local.ProfileEntity
+import com.example.data.remote.AuthTokenManager
 import com.example.data.repository.AdventHeartsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,6 +32,8 @@ data class LikeWithProfile(
 class MatchesViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = AdventHeartsRepository.getInstance(application)
+    private fun uid(): String = AuthTokenManager.currentUserId ?: "usr_me"
+    fun currentUserId(): String = uid()
 
     private val _currentMatchId = MutableStateFlow<String?>(null)
     val currentMatchId: StateFlow<String?> = _currentMatchId.asStateFlow()
@@ -38,10 +41,10 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
     private val _typedMessage = MutableStateFlow("")
     val typedMessage: StateFlow<String> = _typedMessage.asStateFlow()
 
-    val matchesWithProfiles: StateFlow<List<MatchWithProfile>> = repo.getMatches("usr_me")
+    val matchesWithProfiles: StateFlow<List<MatchWithProfile>> = repo.getMatches(uid())
         .map { matches ->
             matches.map { match ->
-                val otherId = if (match.user1Id == "usr_me") match.user2Id else match.user1Id
+                val otherId = if (match.user1Id == uid()) match.user2Id else match.user1Id
                 val otherProf = repo.getProfileSync(otherId)
                 MatchWithProfile(match, otherProf)
             }
@@ -51,7 +54,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
-    val likesYouProfiles: StateFlow<List<LikeWithProfile>> = repo.getLikesReceived("usr_me")
+    val likesYouProfiles: StateFlow<List<LikeWithProfile>> = repo.getLikesReceived(uid())
         .map { likes ->
             likes.map { like ->
                 val prof = repo.getProfileSync(like.fromUserId)
@@ -77,7 +80,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
         else {
             val match = repo.getMatchById(matchId)
             if (match != null) {
-                val otherId = if (match.user1Id == "usr_me") match.user2Id else match.user1Id
+                val otherId = if (match.user1Id == uid()) match.user2Id else match.user1Id
                 val prof = repo.getProfileSync(otherId)
                 flowOf(MatchWithProfile(match, prof))
             } else flowOf(null)
@@ -91,7 +94,8 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
     fun selectMatch(matchId: String) {
         _currentMatchId.value = matchId
         viewModelScope.launch {
-            repo.markMessagesAsRead(matchId, "usr_me")
+            repo.markMessagesAsRead(matchId, uid())
+            repo.syncMessages(matchId)
         }
     }
 
@@ -106,8 +110,8 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
 
         viewModelScope.launch {
             val match = repo.getMatchById(matchId) ?: return@launch
-            val receiverId = if (match.user1Id == "usr_me") match.user2Id else match.user1Id
-            repo.sendMessage(matchId, "usr_me", receiverId, text)
+            val receiverId = if (match.user1Id == uid()) match.user2Id else match.user1Id
+            repo.sendMessage(matchId, uid(), receiverId, text)
             _typedMessage.value = ""
         }
     }
@@ -115,5 +119,14 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
     fun sendPromptAsMessage(promptText: String) {
         _typedMessage.value = promptText
         sendMessage()
+    }
+
+    fun unmatch(matchId: String) {
+        viewModelScope.launch {
+            repo.unmatch(matchId)
+            if (_currentMatchId.value == matchId) {
+                _currentMatchId.value = null
+            }
+        }
     }
 }

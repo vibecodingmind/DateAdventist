@@ -73,13 +73,26 @@ export class AuthService {
     return jwt.sign({ userId, purpose: 'email_verification' }, config.jwtSecret, { expiresIn: '24h' });
   }
 
-  /**
-   * Verifies email token
-   */
   static verifyEmailToken(token: string): { userId: string } | null {
     try {
+      const decoded = jwt.verify(token, config.jwtSecret) as { userId?: string; purpose?: string };
+      if (decoded.purpose === 'email_verification' && decoded.userId) {
+        return { userId: decoded.userId };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  static generatePasswordResetToken(userId: string): string {
+    return jwt.sign({ userId, purpose: 'password_reset' }, config.jwtSecret, { expiresIn: '1h' });
+  }
+
+  static verifyPasswordResetToken(token: string): { userId: string } | null {
+    try {
       const decoded = jwt.verify(token, config.jwtSecret) as any;
-      if (decoded.purpose === 'email_verification') {
+      if (decoded.purpose === 'password_reset') {
         return { userId: decoded.userId };
       }
       return null;

@@ -1,22 +1,22 @@
 package com.example.data.remote
 
+import com.example.BuildConfig
+import com.example.data.local.MessageEntity
 import com.example.data.local.ProfileEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
-/**
- * Centralized API client for AdventHearts Android frontend.
- * Communicates with backend endpoints (/api/v1/) using Retrofit, OkHttp interceptors,
- * and base URL / Auth token management.
- */
 class AdventHeartsApiClient(
-    baseUrl: String = "https://ais-dev-76mcn3mxut2jc3whyrmhu6-709051202870.europe-west2.run.app/api/v1/"
+    baseUrl: String = BuildConfig.API_BASE_URL
 ) {
     private val service = RetrofitClient.apiService
 
     init {
-        RetrofitClient.setBaseUrl(baseUrl)
+        RetrofitClient.setBaseUrl(if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/")
     }
 
     fun setAuthToken(token: String?) {
@@ -38,164 +38,181 @@ class AdventHeartsApiClient(
                     ApiResponse.Error(err?.code ?: "API_ERROR", err?.message ?: "Unknown API response error.")
                 }
             } else {
-                ApiResponse.Error("HTTP_${response.code()}", response.message() ?: "HTTP call failed with code ${response.code()}")
+                ApiResponse.Error("HTTP_${response.code()}", response.message().ifBlank { "HTTP call failed with code ${response.code()}" })
             }
         } catch (e: Exception) {
             ApiResponse.Error("NETWORK_ERROR", e.message ?: "Failed to connect to backend service.")
         }
     }
 
-    // POST /api/v1/auth/register
     suspend fun register(
         email: String,
-        passwordHash: String,
+        password: String,
         fullName: String,
         dateOfBirth: String,
         gender: String,
         country: String,
-        city: String
+        city: String,
+        age: Int? = null,
+        relationshipIntention: String? = null
     ): ApiResponse<AuthResponseData> {
-        if (email.isBlank() || passwordHash.isBlank()) {
+        if (email.isBlank() || password.isBlank()) {
             return ApiResponse.Error("INVALID_INPUT", "Email and password are required.")
         }
 
         val request = RegisterRequestDto(
             email = email,
-            password = passwordHash,
+            password = password,
             fullName = fullName,
             dateOfBirth = dateOfBirth,
+            age = age,
             gender = gender,
             country = country,
-            city = city
+            city = city,
+            relationshipIntention = relationshipIntention
         )
 
-        val result = safeCall({ service.register(request) }) { dto ->
-            AuthResponseData(
-                userId = dto.userId,
-                email = dto.email,
-                fullName = dto.fullName,
-                accessToken = dto.accessToken,
-                refreshToken = dto.refreshToken
-            )
-        }
-
+        val result = safeCall({ service.register(request) }, ::toAuthData)
         if (result is ApiResponse.Success) {
-            setAuthToken(result.data.accessToken)
-            AuthTokenManager.refreshToken = result.data.refreshToken
-            return result
+            persistSession(result.data)
         }
-
-        // Fallback for offline mode / dev preview
-        val token = "jwt_access_token_${System.currentTimeMillis()}"
-        setAuthToken(token)
-        return ApiResponse.Success(
-            AuthResponseData(
-                userId = "usr_${System.currentTimeMillis()}",
-                email = email,
-                fullName = fullName,
-                accessToken = token,
-                refreshToken = "jwt_refresh_token_${System.currentTimeMillis()}"
-            )
-        )
+        return result
     }
 
-    // POST /api/v1/auth/login
-    suspend fun login(email: String, passwordHash: String): ApiResponse<AuthResponseData> {
-        if (email.isBlank() || passwordHash.isBlank()) {
+    suspend fun login(email: String, password: String): ApiResponse<AuthResponseData> {
+        if (email.isBlank() || password.isBlank()) {
             return ApiResponse.Error("INVALID_CREDENTIALS", "Email and password cannot be empty.")
         }
-
-        val request = LoginRequestDto(email = email, password = passwordHash)
-
-        val result = safeCall({ service.login(request) }) { dto ->
-            AuthResponseData(
-                userId = dto.userId,
-                email = dto.email,
-                fullName = dto.fullName,
-                accessToken = dto.accessToken,
-                refreshToken = dto.refreshToken
-            )
-        }
-
+        val result = safeCall({ service.login(LoginRequestDto(email, password)) }, ::toAuthData)
         if (result is ApiResponse.Success) {
-            setAuthToken(result.data.accessToken)
-            AuthTokenManager.refreshToken = result.data.refreshToken
-            return result
+            persistSession(result.data)
         }
-
-        // Fallback for local testing
-        val token = "jwt_access_token_${System.currentTimeMillis()}"
-        setAuthToken(token)
-        return ApiResponse.Success(
-            AuthResponseData(
-                userId = "usr_authenticated",
-                email = email,
-                fullName = "AdventHearts Member",
-                accessToken = token,
-                refreshToken = "jwt_refresh_token_${System.currentTimeMillis()}"
-            )
-        )
+        return result
     }
 
-    // GET /api/v1/discover
-    suspend fun fetchDiscoveryProfiles(currentUserId: String): ApiResponse<List<ProfileEntity>> {
-        return safeCall({ service.getDiscoveryProfiles() }) {
-            emptyList<ProfileEntity>()
+    suspend fun loginAdmin(email: String, password: String): ApiResponse<AuthResponseData> {
+        val result = safeCall({ service.loginAdmin(AdminLoginRequestDto(email, password)) }, ::toAuthData)
+        if (result is ApiResponse.Success) {
+            persistSession(result.data)
         }
+        return result
     }
 
-    // POST /api/v1/discover/like
+    suspend fun fetchDiscoveryProfiles(): ApiResponse<List<ProfileEntity>> {
+        return safeCall({ service.getDiscoveryProfiles() }) { list -> list.map { it.toEntity() } }
+    }
+
+    suspend fun fetchProfile(): ApiResponse<ProfileEntity> {
+        return safeCall({ service.getProfile() }) { it.toEntity() }
+    }
+
+    suspend fun updateProfile(profile: ProfileEntity): ApiResponse<ProfileEntity> {
+        val dto = profile.toDto()
+        val result = safeCall({ service.updateProfile(dto) }) { it.toEntity() }
+        if (result is ApiResponse.Success) {
+            safeCall({ service.updateFaithProfile(dto) }) { it.toEntity() }
+        }
+        return result
+    }
+
+    suspend fun unmatch(matchId: String): ApiResponse<Boolean> {
+        return safeCall({ service.unmatch(matchId) }) { true }
+    }
+
+    suspend fun fetchMatches(): ApiResponse<List<MatchDto>> {
+        return safeCall({ service.getMatches() }) { it }
+    }
+
+    suspend fun fetchLikes(): ApiResponse<List<LikeReceivedDto>> {
+        return safeCall({ service.getLikesReceived() }) { it }
+    }
+
+    suspend fun fetchMessages(matchId: String): ApiResponse<List<MessageEntity>> {
+        return safeCall({ service.getMessages(matchId) }) { list -> list.map { it.toEntity() } }
+    }
+
+    suspend fun fetchNotifications(): ApiResponse<List<NotificationDto>> {
+        return safeCall({ service.getNotifications() }) { it }
+    }
+
     suspend fun sendLike(fromUserId: String, toUserId: String, isSuperLike: Boolean): ApiResponse<LikeResponseData> {
         val request = LikeRequestDto(fromUserId = fromUserId, toUserId = toUserId, isSuperLike = isSuperLike)
-        val result = safeCall({ service.sendLike(request) }) { dto ->
+        return safeCall({ service.sendLike(request) }) { dto ->
             LikeResponseData(
                 isMatch = dto.isMatch,
                 matchId = dto.matchId,
                 compatibilityScore = dto.compatibilityScore
             )
         }
-        if (result is ApiResponse.Success) {
-            return result
-        }
-        return ApiResponse.Success(
-            LikeResponseData(
-                isMatch = false,
-                matchId = null,
-                compatibilityScore = 85
-            )
-        )
     }
 
-    // POST /api/v1/subscriptions/checkout
-    suspend fun initiateCheckout(planId: String): ApiResponse<CheckoutResponseData> {
-        val request = CheckoutRequestDto(planId = planId)
-        val result = safeCall({ service.initiateCheckout(request) }) { dto ->
+    suspend fun sendPass(toUserId: String): ApiResponse<Boolean> {
+        return safeCall({ service.sendPass(PassRequestDto(toUserId)) }) { true }
+    }
+
+    suspend fun initiateCheckout(planId: String, paymentProvider: String = "stripe"): ApiResponse<CheckoutResponseData> {
+        val request = CheckoutRequestDto(planId = planId, paymentProvider = paymentProvider)
+        return safeCall({ service.initiateCheckout(request) }) { dto ->
             CheckoutResponseData(
                 transactionId = dto.transactionId,
                 checkoutUrl = dto.checkoutUrl,
                 status = dto.status
             )
         }
-        if (result is ApiResponse.Success) {
-            return result
-        }
-        val txId = "tx_stripe_${System.currentTimeMillis()}"
-        return ApiResponse.Success(
-            CheckoutResponseData(
-                transactionId = txId,
-                checkoutUrl = "https://checkout.stripe.com/pay/$txId",
-                status = "INITIATED"
-            )
-        )
     }
 
-    // POST /api/v1/conversations/messages
-    suspend fun sendMessage(matchId: String, senderId: String, receiverId: String, text: String): ApiResponse<Boolean> {
+    suspend fun confirmPayment(transactionId: String, planId: String): ApiResponse<Boolean> {
+        return safeCall({ service.confirmPayment(ConfirmPaymentRequestDto(transactionId, planId)) }) { true }
+    }
+
+    suspend fun sendMessage(matchId: String, text: String): ApiResponse<MessageEntity> {
         if (text.isBlank()) {
             return ApiResponse.Error("EMPTY_MESSAGE", "Message body cannot be empty.")
         }
-        return ApiResponse.Success(true)
+        return safeCall({ service.sendMessage(matchId, SendMessageRequestDto(text)) }) { it.toEntity() }
     }
+
+    suspend fun reportUser(reportedUserId: String, reason: String, details: String): ApiResponse<Boolean> {
+        return safeCall({ service.reportUser(ReportRequestDto(reportedUserId, reason, details)) }) { true }
+    }
+
+    suspend fun uploadPhoto(bytes: ByteArray, filename: String = "photo.jpg", kind: String = "profile"): ApiResponse<ProfileEntity> {
+        val body = bytes.toRequestBody("image/jpeg".toMediaType())
+        val part = MultipartBody.Part.createFormData("photo", filename, body)
+        return safeCall({ service.uploadPhoto(part, kind) }) { dto ->
+            dto.profile?.toEntity() ?: throw IllegalStateException("Upload succeeded without a profile")
+        }
+    }
+
+    suspend fun forgotPassword(email: String): ApiResponse<Boolean> {
+        return safeCall({ service.forgotPassword(ForgotPasswordRequestDto(email)) }) { true }
+    }
+
+    suspend fun resetPassword(token: String, password: String): ApiResponse<Boolean> {
+        return safeCall({ service.resetPassword(ResetPasswordRequestDto(token, password)) }) { true }
+    }
+
+    suspend fun deleteAccount(): ApiResponse<Boolean> {
+        return safeCall({ service.deleteAccount() }) { true }
+    }
+
+    suspend fun fetchCurrentSubscription(): ApiResponse<CurrentSubscriptionDto> {
+        return safeCall({ service.getCurrentSubscription() }) { it }
+    }
+
+    private fun persistSession(data: AuthResponseData) {
+        setAuthToken(data.accessToken)
+        AuthTokenManager.saveTokens(data.accessToken, data.refreshToken, data.userId)
+    }
+
+    private fun toAuthData(dto: AuthResponseDto) = AuthResponseData(
+        userId = dto.userId,
+        email = dto.email,
+        fullName = dto.fullName,
+        role = dto.role ?: "USER",
+        accessToken = dto.accessToken,
+        refreshToken = dto.refreshToken
+    )
 }
 
 data class AuthResponseData(
@@ -203,7 +220,8 @@ data class AuthResponseData(
     val email: String,
     val fullName: String,
     val accessToken: String,
-    val refreshToken: String
+    val refreshToken: String,
+    val role: String = "USER"
 )
 
 data class LikeResponseData(

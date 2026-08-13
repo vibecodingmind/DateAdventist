@@ -1,30 +1,21 @@
 # AdventHearts - Automated Testing Guide
 
-## 1. Test Architecture
-The backend testing suite includes Unit, Integration, and End-to-End (E2E) tests executed via **Jest** and **Supertest**.
+## Backend
 
 ```bash
-# Run unit tests
-npm run test:unit
-
-# Run integration tests against test PostgreSQL container
-npm run test:integration
-
-# Run full E2E user & admin journey tests
-npm run test:e2e
+cd backend
+npm test
 ```
 
----
+Jest + Supertest cover:
 
-## 2. Tested Key User & Admin Journeys
+1. Health check
+2. Member login / invalid credentials / registration
+3. Profile + discovery feed
+4. Reciprocal like → match
+5. Chat send/list
+6. Report + block
+7. Subscription checkout confirmation
+8. Admin RBAC (member denied, admin allowed, super-admin settings)
 
-### User Journey Coverage
-1. `User Registration` -> `Email Verification` -> `Profile Completion` -> `Selfie Upload`.
-2. `Discover Profiles` -> `Send Like` -> `Reciprocal Like Event` -> `Match Record Created`.
-3. `Open Chat` -> `Send Message` -> `WebSocket Broadcast` -> `Read Receipt`.
-4. `Subscribe Premium` -> `Stripe Checkout Session` -> `Webhook Trigger` -> `isPremium Granted`.
-
-### Admin Journey Coverage
-1. `Admin Authentication` -> `RBAC Middleware Pass`.
-2. `Fetch Pending Verifications` -> `Approve Selfie` -> `Verified Badge Granted`.
-3. `Update Payment Settings` -> `SystemSettings Updated in Database`.
+The Android UI still uses Room for offline demo data; network calls go through `AdventHeartsApiClient`.

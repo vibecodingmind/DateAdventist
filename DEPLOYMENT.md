@@ -1,35 +1,75 @@
-# AdventHearts - Production Deployment Guide
+# AdventHearts deployment
 
-## 1. Containerized Infrastructure (Docker)
+The Android app talks to the Node API at `API_BASE_URL`. Deploy the API first, then point the app at that HTTPS URL.
 
-```dockerfile
-# Dockerfile for Backend API
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-COPY prisma ./prisma/
-RUN npm ci
-COPY . .
-RUN npm run build
+## Launch checklist
 
-FROM node:20-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm ci --only=production
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-RUN npx prisma generate
+1. Host the API with a strong `JWT_SECRET` / `JWT_REFRESH_SECRET`.
+2. Set `PUBLIC_BASE_URL` to the public HTTPS origin (used for photo URLs, email links, and Stripe return URLs).
+3. For live payments, set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, then point Stripe webhooks at `POST /api/v1/subscriptions/webhook`.
+4. For live email (verification + password reset), set `EMAIL_API_KEY` (Resend) and `EMAIL_FROM`.
+5. Build the Android app with `API_BASE_URL=https://<your-host>/api/v1/`.
+6. Confirm `GET https://<your-host>/health` returns `{ "success": true, "status": "HEALTHY" }`.
 
-EXPOSE 5000
-CMD ["node", "dist/server.js"]
+SQLite is enough to go live on a single instance. Photo files are stored on local disk (`uploads/`). Use a persistent volume, or photos will disappear if the container is replaced. Postgres and object storage can be added later.
+
+## 1. Run locally
+
+```bash
+cd backend
+cp .env.example .env
+npm install
+npx prisma generate
+npx prisma db push
+npm run seed
+npm run dev
 ```
 
----
+Health check: `GET http://localhost:5000/health`
 
-## 2. CI/CD Pipeline Steps
-1. **Linting & Validation**: `npm run lint` & `npm run type-check`.
-2. **Database Migration**: `npx prisma migrate deploy`.
-3. **Container Build & Push**: Tag and push to Amazon ECR / Docker Hub.
-4. **Deploy**: Kubernetes Rolling Update / AWS ECS Task definition update.
-5. **Health Checks**: Poll `GET /health` to confirm 200 OK.
+Demo logins after seed:
+
+- Member: `john.adventist@gmail.com` / `password123`
+- Admin: `admin@adventhearts.com` / `AdminPass2026!`
+
+## 2. Docker
+
+```bash
+docker compose up --build
+```
+
+The container listens on `0.0.0.0:5000`, creates the SQLite file if needed, and seeds demo accounts when the database is empty. Uploaded photos are stored in the `adventhearts-uploads` volume.
+
+## 3. Cloud host (Cloud Run, Railway, Fly, Render)
+
+Build from `backend/Dockerfile`. Set:
+
+| Variable | Required for live | Example |
+| :--- | :--- | :--- |
+| `PORT` | yes | provided by the host |
+| `HOST` | yes | `0.0.0.0` |
+| `JWT_SECRET` | yes | long random string |
+| `JWT_REFRESH_SECRET` | yes | long random string |
+| `DATABASE_URL` | yes | `file:./data/adventhearts.db` |
+| `NODE_ENV` | yes | `production` |
+| `PUBLIC_BASE_URL` | yes | `https://api.example.com` |
+| `UPLOAD_DIR` | no | `uploads` |
+| `STRIPE_SECRET_KEY` | payments | `sk_live_...` |
+| `STRIPE_WEBHOOK_SECRET` | payments | `whsec_...` |
+| `EMAIL_API_KEY` | email | Resend API key |
+| `EMAIL_FROM` | email | `AdventHearts <no-reply@example.com>` |
+
+Without Stripe keys, checkout returns `503` in production (dev still uses a local confirm-payment path). Without `EMAIL_API_KEY`, verification and reset tokens are logged to the server console.
+
+Then set Android `.env`:
+
+```
+API_BASE_URL=https://<your-host>/api/v1/
+```
+
+Backend tests (run locally before you deploy):
+
+```bash
+cd backend
+npm test
+```
