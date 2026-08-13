@@ -1,12 +1,13 @@
 import { Server as HttpServer } from 'http';
 import { Server } from 'socket.io';
 import { AuthService } from '../auth/auth.service';
+import { corsOriginOption } from '../config';
 
 let io: Server | null = null;
 
 export function initRealtime(httpServer: HttpServer) {
   io = new Server(httpServer, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    cors: { origin: corsOriginOption(), methods: ['GET', 'POST'] },
   });
 
   io.use((socket, next) => {

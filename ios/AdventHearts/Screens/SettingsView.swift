@@ -11,6 +11,8 @@ struct SettingsView: View {
             Text("Delete is permanent and removes your AdventHearts profile from the server.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            Link("Terms of Service", destination: AppConfig.termsURL)
+            Link("Privacy Policy", destination: AppConfig.privacyURL)
             Button("Log out") { session.logout() }
             Button("Delete account", role: .destructive) {
                 Task {

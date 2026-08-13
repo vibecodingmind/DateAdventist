@@ -19,7 +19,7 @@ npm run dev
 4. In Signing & Capabilities, choose your Apple ID / team (required even for simulator on some Xcode versions; required for a physical device).
 5. Press Run.
 
-The simulator talks to `http://127.0.0.1:5000` (see `AdventHearts/API/Config.swift`).
+The simulator talks to `http://127.0.0.1:5000` (debug `AppConfig.origin`). Release builds read `API_ORIGIN` from `Info.plist`.
 
 ## Physical iPhone
 
@@ -27,7 +27,7 @@ The simulator talks to `http://127.0.0.1:5000` (see `AdventHearts/API/Config.swi
 2. Change `AppConfig.origin` to your Mac’s LAN IP, for example `http://192.168.1.12:5000`.
 3. Plug in the device, pick your Development Team, Run.
 
-HTTP to a local IP is allowed by `NSAllowsLocalNetworking` in `Info.plist`. For production, point `origin` at `https://api.yourdomain.com` and turn ATS back to default.
+HTTP to a local IP is allowed by `NSAllowsLocalNetworking` in `Info.plist`. Release builds do **not** allow arbitrary HTTP. Set `API_ORIGIN` to `https://api.yourdomain.com` before TestFlight / App Store.
 
 ## App Store
 
@@ -36,4 +36,4 @@ HTTP to a local IP is allowed by `NSAllowsLocalNetworking` in `Info.plist`. For 
 - Archive in Xcode → Distribute to App Store Connect.
 - Camera / photo library usage strings are already in `Info.plist`.
 
-Demo login: `john.adventist@gmail.com` / `password123`.
+Debug builds include demo login buttons (`john.adventist@gmail.com` / `password123` after a local seed). Release builds do not.

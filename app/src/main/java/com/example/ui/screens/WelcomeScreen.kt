@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.ui.theme.AdventRedPrimary
 import com.example.ui.theme.GoldTertiary
 import com.example.ui.theme.NavySecondary
@@ -266,32 +267,41 @@ fun WelcomeScreen(
                     Text("I Already Have an Account")
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "By creating an account you agree to the AdventHearts Terms of Service and Privacy Policy.",
+                    fontSize = 11.sp,
+                    color = Color.White.copy(alpha = 0.55f),
+                    textAlign = TextAlign.Center
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Quick Demo Profiles Bar for direct preview
-                Text(
-                    text = "Quick Demo Switcher:",
-                    fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.6f)
-                )
-                Spacer(modifier = Modifier.height(6.dp))
+                if (BuildConfig.DEBUG) {
+                    Text(
+                        text = "Quick Demo Switcher:",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = { onDemoLogin("usr_me") },
-                        modifier = Modifier.testTag("demo_user_joshua")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Member (Joshua)", fontSize = 11.sp, color = Color.White)
-                    }
+                        OutlinedButton(
+                            onClick = { onDemoLogin("usr_me") },
+                            modifier = Modifier.testTag("demo_user_joshua")
+                        ) {
+                            Text("Member (Joshua)", fontSize = 11.sp, color = Color.White)
+                        }
 
-                    OutlinedButton(
-                        onClick = { onDemoLogin("usr_admin") },
-                        modifier = Modifier.testTag("demo_user_admin")
-                    ) {
-                        Text("Admin Panel", fontSize = 11.sp, color = GoldTertiary)
+                        OutlinedButton(
+                            onClick = { onDemoLogin("usr_admin") },
+                            modifier = Modifier.testTag("demo_user_admin")
+                        ) {
+                            Text("Admin Panel", fontSize = 11.sp, color = GoldTertiary)
+                        }
                     }
                 }
             }

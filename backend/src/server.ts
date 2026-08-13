@@ -4,7 +4,7 @@ import http from 'http';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { config } from './config';
+import { config, assertLiveConfig, corsOriginOption } from './config';
 import authRoutes from './routes/auth.routes';
 import profileRoutes from './routes/profile.routes';
 import subscriptionRoutes from './routes/subscription.routes';
@@ -19,6 +19,7 @@ import { requireAuth } from './middleware/auth.middleware';
 import { UploadController } from './controllers/upload.controller';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { ensureUploadDir, getUploadDir } from './services/storage.service';
+import { TERMS_TEXT, TERMS_TITLE, PRIVACY_TEXT, PRIVACY_TITLE, legalHtml } from './legal/content';
 
 ensureUploadDir();
 
@@ -40,8 +41,17 @@ const upload = multer({
 });
 
 const app = express();
-
-app.use(cors());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(cors({ origin: corsOriginOption() }));
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  if (config.publicBaseUrl.startsWith('https://')) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 app.use('/uploads', express.static(getUploadDir()));
 app.post(
   '/api/v1/subscriptions/webhook',
@@ -66,6 +76,18 @@ app.use('/api/v1/admin', adminRoutes);
 app.get('/health', (_req, res) => {
   res.json({ success: true, status: 'HEALTHY', timestamp: new Date().toISOString() });
 });
+app.get('/legal/terms', (_req, res) => {
+  res.type('html').send(legalHtml(TERMS_TITLE, TERMS_TEXT));
+});
+app.get('/legal/privacy', (_req, res) => {
+  res.type('html').send(legalHtml(PRIVACY_TITLE, PRIVACY_TEXT));
+});
+app.get('/api/v1/legal/terms', (_req, res) => {
+  res.json({ success: true, data: { title: TERMS_TITLE, text: TERMS_TEXT } });
+});
+app.get('/api/v1/legal/privacy', (_req, res) => {
+  res.json({ success: true, data: { title: PRIVACY_TITLE, text: PRIVACY_TEXT } });
+});
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -81,12 +103,16 @@ if (process.env.NODE_ENV !== 'test') {
   const host = process.env.HOST || '0.0.0.0';
 
   (async () => {
+    assertLiveConfig();
     const { prisma } = await import('./db/prisma');
     const existing = await prisma.user.count();
-    if (existing === 0) {
+    const canSeed = config.env !== 'production' || config.allowDemoSeed;
+    if (existing === 0 && canSeed) {
       const { seedDatabase } = await import('./seed');
       console.log('Empty database — loading AdventHearts demo accounts...');
       await seedDatabase();
+    } else if (existing === 0 && config.env === 'production') {
+      console.log('Empty production database — demo seed skipped. Create a real admin account after start.');
     }
     server.listen(config.port, host, () => {
       console.log(`AdventHearts Backend API listening on ${host}:${config.port}`);

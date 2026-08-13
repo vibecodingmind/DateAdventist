@@ -1,6 +1,7 @@
 import { prisma } from './db/prisma';
 import { AuthService } from './auth/auth.service';
 import { stringifyStringArray, dobFromAge } from './utils/json';
+import { config } from './config';
 
 type SeedUser = {
   id: string;
@@ -333,6 +334,9 @@ const users: SeedUser[] = [
 ];
 
 export async function seedDatabase() {
+  if (config.env === 'production' && !config.allowDemoSeed) {
+    throw new Error('Demo seed is disabled in production. Set ALLOW_DEMO_SEED=true only on private staging.');
+  }
   for (const item of users) {
     const passwordHash = await AuthService.hashPassword(item.password);
     await prisma.user.upsert({

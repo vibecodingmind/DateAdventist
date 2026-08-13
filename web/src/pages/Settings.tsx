@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, clearSession } from '../api';
 
 export default function Settings() {
@@ -13,6 +13,12 @@ export default function Settings() {
       <div className="card muted">
         Discovery filters, privacy toggles, and notifications sync from your account on the API. Delete is permanent.
       </div>
+      <Link className="btn btn-ghost" to="/legal/terms" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+        Terms of Service
+      </Link>
+      <Link className="btn btn-ghost" to="/legal/privacy" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+        Privacy Policy
+      </Link>
       <button
         className="btn btn-ghost"
         onClick={() => {

@@ -15,16 +15,19 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.adventhearts.cxdmzp"
+    applicationId = "com.adventhearts.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
 
+    val apiBase = getEnvOrProperty("API_BASE_URL", "http://10.0.2.2:5000/api/v1/")
+    val legalDefault = apiBase.replace(Regex("/api/v1/?$"), "").trimEnd('/')
+    buildConfigField("String", "API_BASE_URL", "\"$apiBase\"")
     buildConfigField(
       "String",
-      "API_BASE_URL",
-      "\"${getEnvOrProperty("API_BASE_URL", "http://10.0.2.2:5000/api/v1/")}\""
+      "LEGAL_BASE_URL",
+      "\"${getEnvOrProperty("LEGAL_BASE_URL", legalDefault)}\""
     )
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

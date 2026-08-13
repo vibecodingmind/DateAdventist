@@ -142,4 +142,7 @@ export const api = {
       openReports: number;
       monthlyRevenue: number;
     }>('/api/v1/admin/dashboard'),
+
+  legal: (kind: 'terms' | 'privacy') =>
+    request<{ title: string; text: string }>(`/api/v1/legal/${kind}`),
 };
