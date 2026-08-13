@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.ProfileEntity
@@ -36,6 +37,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _authError = MutableStateFlow<String?>(null)
     val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _uploadedPhotoUrl = MutableStateFlow<String?>(null)
+    val uploadedPhotoUrl: StateFlow<String?> = _uploadedPhotoUrl.asStateFlow()
 
     init {
         com.example.data.remote.AuthTokenManager.init(application)
@@ -224,6 +228,56 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         com.example.data.remote.AuthTokenManager.clearTokens()
         _currentUserId.value = null
         _onboardingStep.value = 0
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            repo.deleteAccountRemote()
+            logout()
+        }
+    }
+
+    fun forgotPassword(email: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            when (val result = repo.forgotPassword(email.trim())) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _authError.value = "If that email is registered, a reset link has been sent."
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = if (result.code == "NETWORK_ERROR") {
+                        "If that email is registered, a reset link has been sent."
+                    } else result.message
+                }
+            }
+        }
+    }
+
+    fun resetPassword(token: String, newPassword: String) {
+        viewModelScope.launch {
+            _authError.value = null
+            when (val result = repo.resetPassword(token.trim(), newPassword)) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _authError.value = "Password updated. You can sign in now."
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = result.message
+                }
+            }
+        }
+    }
+
+    fun uploadProfilePhoto(uri: Uri) {
+        viewModelScope.launch {
+            when (val result = repo.uploadPhoto(getApplication(), uri, "profile")) {
+                is com.example.data.remote.ApiResponse.Success -> {
+                    _uploadedPhotoUrl.value = result.data.primaryPhoto
+                }
+                is com.example.data.remote.ApiResponse.Error -> {
+                    _authError.value = result.message
+                }
+            }
+        }
     }
 
     fun clearError() {

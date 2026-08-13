@@ -56,10 +56,14 @@ If the API is unreachable, the app still runs against the local Room demo databa
 ## Core API
 
 - `POST /api/v1/auth/register` `POST /api/v1/auth/login` `GET /api/v1/auth/me`
+- `POST /api/v1/auth/forgot-password` `POST /api/v1/auth/reset-password` `POST /api/v1/auth/verify-email`
+- `POST /api/v1/auth/delete-account`
+- `GET|PUT /api/v1/profile` `POST /api/v1/profile/photo`
 - `GET /api/v1/discover` `POST /api/v1/discover/like` `POST /api/v1/discover/pass`
-- `GET /api/v1/likes` `GET /api/v1/matches` `GET|POST /api/v1/matches/:id/messages`
+- `GET /api/v1/likes` `GET /api/v1/matches` `GET|POST /api/v1/matches/:id/messages` `DELETE /api/v1/matches/:id`
 - `POST /api/v1/safety/report` `POST /api/v1/safety/block`
-- `GET /api/v1/subscriptions/plans` `POST /api/v1/subscriptions/checkout`
+- `GET /api/v1/subscriptions/plans` `GET /api/v1/subscriptions/current` `POST /api/v1/subscriptions/checkout`
+- `POST /api/v1/subscriptions/webhook` (Stripe) `POST /api/v1/subscriptions/confirm-payment` (dev only)
 - `GET /api/v1/admin/dashboard` (moderator+) with server-side RBAC
 
 Realtime events (Socket.IO, JWT in `auth.token`): `match:new`, `like:new`, `chat:message`.

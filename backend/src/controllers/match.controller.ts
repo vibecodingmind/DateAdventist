@@ -151,4 +151,23 @@ export class MatchController {
     emitToMatch(req.params.matchId, 'chat:read_receipt', { matchId: req.params.matchId, userId });
     return ok(res, { marked: true });
   }
+
+  static async unmatch(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user?.userId;
+    if (!userId) return fail(res, 'UNAUTHORIZED', 'Authentication required', 401);
+    const match = await prisma.match.findUnique({ where: { id: req.params.matchId } });
+    if (!match || (match.user1Id !== userId && match.user2Id !== userId)) {
+      return fail(res, 'NOT_FOUND', 'Match not found.', 404);
+    }
+    await prisma.like.deleteMany({
+      where: {
+        OR: [
+          { fromUserId: match.user1Id, toUserId: match.user2Id },
+          { fromUserId: match.user2Id, toUserId: match.user1Id },
+        ],
+      },
+    });
+    await prisma.match.delete({ where: { id: match.id } });
+    return ok(res, { unmatched: true, matchId: match.id });
+  }
 }

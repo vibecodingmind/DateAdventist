@@ -28,13 +28,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.AuthTokenManager
 import com.example.data.repository.AdventHeartsRepository
 
 @Composable
 fun NotificationsScreen(
     repository: AdventHeartsRepository
 ) {
-    val notifs by repository.getNotifications("usr_me").collectAsState(initial = emptyList())
+    val notifs by repository.getNotifications(AuthTokenManager.currentUserId ?: "usr_me").collectAsState(initial = emptyList())
 
     Column(
         modifier = Modifier

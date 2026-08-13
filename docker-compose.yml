@@ -10,8 +10,16 @@ services:
       DATABASE_URL: file:./data/adventhearts.db
       JWT_SECRET: ${JWT_SECRET:-change_me_to_a_long_random_jwt_secret}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_to_a_long_random_refresh_secret}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5000}
+      UPLOAD_DIR: uploads
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      EMAIL_API_KEY: ${EMAIL_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-AdventHearts <no-reply@adventhearts.com>}
     volumes:
       - adventhearts-data:/app/data
+      - adventhearts-uploads:/app/uploads
 
 volumes:
   adventhearts-data:
+  adventhearts-uploads:

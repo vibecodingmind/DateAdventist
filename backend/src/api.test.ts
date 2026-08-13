@@ -184,4 +184,80 @@ describe('AdventHearts API', () => {
     expect(settings.status).toBe(200);
     expect(settings.body.data.provider).toBe('Stripe');
   });
+
+  it('uploads a profile photo', async () => {
+    const res = await request(app)
+      .post('/api/v1/profile/photo')
+      .set('Authorization', `Bearer ${memberToken}`)
+      .field('kind', 'profile')
+      .attach('photo', Buffer.from([0xff, 0xd8, 0xff, 0xd9]), { filename: 'test.jpg', contentType: 'image/jpeg' });
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.url).toContain('/uploads/');
+  });
+
+  it('issues a password reset without leaking accounts', async () => {
+    const res = await request(app).post('/api/v1/auth/forgot-password').send({
+      email: 'john.adventist@gmail.com',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.message).toMatch(/reset/i);
+
+    const unknown = await request(app).post('/api/v1/auth/forgot-password').send({
+      email: 'nobody@example.com',
+    });
+    expect(unknown.status).toBe(200);
+  });
+
+  it('resets a password with a valid token', async () => {
+    const { AuthService } = require('./auth/auth.service');
+    const token = AuthService.generatePasswordResetToken('usr_me');
+    await prisma.user.update({
+      where: { id: 'usr_me' },
+      data: { resetToken: token, resetTokenExpires: new Date(Date.now() + 3600_000) },
+    });
+    const res = await request(app).post('/api/v1/auth/reset-password').send({
+      token,
+      password: 'password123',
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('updates profile fields on the server', async () => {
+    const res = await request(app)
+      .put('/api/v1/profile')
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({ bio: 'Looking for a Sabbath-keeping partner in ministry.', localChurch: 'Pioneer Memorial' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.bio).toContain('Sabbath-keeping');
+  });
+
+  it('unmatches a connection', async () => {
+    const matches = await request(app).get('/api/v1/matches').set('Authorization', `Bearer ${memberToken}`);
+    const hannah = matches.body.data.find((m: { otherProfile?: { userId: string } }) => m.otherProfile?.userId === 'usr_hannah');
+    expect(hannah).toBeTruthy();
+    const res = await request(app)
+      .delete(`/api/v1/matches/${hannah.matchId}`)
+      .set('Authorization', `Bearer ${memberToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.unmatched).toBe(true);
+  });
+
+  it('deletes an account and blocks further login', async () => {
+    const created = await request(app).post('/api/v1/auth/register').send({
+      email: 'leave.soon@adventhearts.com',
+      password: 'Password123!',
+      fullName: 'Leaving Member',
+      age: 29,
+    });
+    const token = created.body.data.accessToken;
+    const del = await request(app).post('/api/v1/auth/delete-account').set('Authorization', `Bearer ${token}`);
+    expect(del.status).toBe(200);
+
+    const login = await request(app).post('/api/v1/auth/login').send({
+      email: 'leave.soon@adventhearts.com',
+      password: 'Password123!',
+    });
+    expect(login.status).toBe(401);
+  });
 });

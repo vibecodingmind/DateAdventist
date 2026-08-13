@@ -10,6 +10,7 @@ router.get('/:matchId', requireAuth, MatchController.getById);
 router.get('/:matchId/messages', requireAuth, MatchController.listMessages);
 router.post('/:matchId/messages', requireAuth, MatchController.sendMessage);
 router.post('/:matchId/read', requireAuth, MatchController.markRead);
+router.delete('/:matchId', requireAuth, MatchController.unmatch);
 
 export const likesRouter = Router();
 likesRouter.get('/', requireAuth, DiscoverController.likesReceived);

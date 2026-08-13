@@ -33,6 +33,7 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
 
     private val repo = AdventHeartsRepository.getInstance(application)
     private fun uid(): String = AuthTokenManager.currentUserId ?: "usr_me"
+    fun currentUserId(): String = uid()
 
     private val _currentMatchId = MutableStateFlow<String?>(null)
     val currentMatchId: StateFlow<String?> = _currentMatchId.asStateFlow()
@@ -118,5 +119,14 @@ class MatchesViewModel(application: Application) : AndroidViewModel(application)
     fun sendPromptAsMessage(promptText: String) {
         _typedMessage.value = promptText
         sendMessage()
+    }
+
+    fun unmatch(matchId: String) {
+        viewModelScope.launch {
+            repo.unmatch(matchId)
+            if (_currentMatchId.value == matchId) {
+                _currentMatchId.value = null
+            }
+        }
     }
 }

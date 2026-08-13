@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.ReportEntity
@@ -50,6 +51,12 @@ class SafetyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun submitSelfieVerification(selfieUri: String) {
         viewModelScope.launch {
+            try {
+                val uri = Uri.parse(selfieUri)
+                repo.uploadPhoto(getApplication(), uri, "verification")
+            } catch (_: Exception) {
+                Unit
+            }
             val prof = repo.getProfileSync(AuthTokenManager.currentUserId ?: "usr_me")
             if (prof != null) {
                 val updated = prof.copy(

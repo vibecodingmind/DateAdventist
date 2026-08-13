@@ -16,7 +16,17 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || 'file:./dev.db',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  emailApiKey: process.env.EMAIL_API_KEY || '',
+  emailFrom: process.env.EMAIL_FROM || 'AdventHearts <no-reply@adventhearts.com>',
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
 };
+
+if (process.env.NODE_ENV === 'production') {
+  const weak = ['change_me', 'adventhearts_dev', 'super_secret'];
+  if (!process.env.JWT_SECRET || weak.some((w) => process.env.JWT_SECRET!.includes(w))) {
+    console.warn('WARNING: Set a strong JWT_SECRET before going live.');
+  }
+}
 
 export const SUBSCRIPTION_PLANS = [
   {

@@ -19,6 +19,6 @@ COPY package*.json ./
 COPY prisma ./prisma/
 RUN npm ci --omit=dev && npx prisma generate
 COPY --from=builder /app/dist ./dist
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/uploads
 EXPOSE 5000
 CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/server.js"]

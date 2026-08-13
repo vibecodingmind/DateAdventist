@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import android.content.Context
+import android.net.Uri
 import com.example.data.local.AdventHeartsDao
 import com.example.data.local.AdventHeartsDatabase
 import com.example.data.local.BlockEntity
@@ -15,6 +16,7 @@ import com.example.data.local.UserAccountEntity
 import com.example.data.remote.AdventHeartsApiClient
 import com.example.data.remote.ApiResponse
 import com.example.data.remote.AuthResponseData
+import com.example.data.remote.AuthTokenManager
 import com.example.data.remote.toEntity
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
@@ -76,6 +78,22 @@ class AdventHeartsRepository(
 
     suspend fun loginAdminRemote(email: String, password: String): ApiResponse<AuthResponseData> {
         return api.loginAdmin(email, password)
+    }
+
+    suspend fun forgotPassword(email: String) = api.forgotPassword(email)
+
+    suspend fun resetPassword(token: String, password: String) = api.resetPassword(token, password)
+
+    suspend fun deleteAccountRemote() = api.deleteAccount()
+
+    suspend fun uploadPhoto(context: Context, uri: Uri, kind: String = "profile"): ApiResponse<ProfileEntity> {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: return ApiResponse.Error("READ_FAILED", "Could not read the selected photo.")
+        val result = api.uploadPhoto(bytes, "photo.jpg", kind)
+        if (result is ApiResponse.Success) {
+            dao.insertProfile(result.data)
+        }
+        return result
     }
 
     private suspend fun cacheRemoteSession(data: AuthResponseData, password: String) {
@@ -144,7 +162,20 @@ class AdventHeartsRepository(
     fun getProfileFlow(userId: String): Flow<ProfileEntity?> = dao.getProfileFlow(userId)
     suspend fun getProfileSync(userId: String): ProfileEntity? = dao.getProfileSync(userId)
     fun getAllOtherProfiles(currentUserId: String): Flow<List<ProfileEntity>> = dao.getAllOtherProfiles(currentUserId)
-    suspend fun updateProfile(profile: ProfileEntity) = dao.updateProfile(profile)
+    suspend fun updateProfile(profile: ProfileEntity) {
+        dao.updateProfile(profile)
+        if (profile.userId == AuthTokenManager.currentUserId) {
+            when (val remote = api.updateProfile(profile)) {
+                is ApiResponse.Success -> dao.insertProfile(remote.data)
+                else -> Unit
+            }
+        }
+    }
+
+    suspend fun unmatch(matchId: String) {
+        api.unmatch(matchId)
+        dao.deleteMatch(matchId)
+    }
     fun getPendingVerifications(): Flow<List<ProfileEntity>> = dao.getPendingVerifications()
 
     // Likes, Passes & Matching Logic

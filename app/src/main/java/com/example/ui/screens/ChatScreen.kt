@@ -65,7 +65,7 @@ import java.util.Locale
 @Composable
 fun ChatScreen(
     chatId: String = "chat_default",
-    currentUserId: String = "usr_me",
+    currentUserId: String = "",
     currentUserName: String = "Me",
     recipientName: String = "Ruth Miller",
     recipientAvatar: String = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",

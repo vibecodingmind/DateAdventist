@@ -1,9 +1,13 @@
 package com.example.data.remote
 
 import com.example.BuildConfig
+import com.example.data.local.MessageEntity
 import com.example.data.local.ProfileEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 class AdventHeartsApiClient(
@@ -102,6 +106,19 @@ class AdventHeartsApiClient(
         return safeCall({ service.getProfile() }) { it.toEntity() }
     }
 
+    suspend fun updateProfile(profile: ProfileEntity): ApiResponse<ProfileEntity> {
+        val dto = profile.toDto()
+        val result = safeCall({ service.updateProfile(dto) }) { it.toEntity() }
+        if (result is ApiResponse.Success) {
+            safeCall({ service.updateFaithProfile(dto) }) { it.toEntity() }
+        }
+        return result
+    }
+
+    suspend fun unmatch(matchId: String): ApiResponse<Boolean> {
+        return safeCall({ service.unmatch(matchId) }) { true }
+    }
+
     suspend fun fetchMatches(): ApiResponse<List<MatchDto>> {
         return safeCall({ service.getMatches() }) { it }
     }
@@ -159,8 +176,28 @@ class AdventHeartsApiClient(
         return safeCall({ service.reportUser(ReportRequestDto(reportedUserId, reason, details)) }) { true }
     }
 
-    suspend fun blockUser(blockedUserId: String): ApiResponse<Boolean> {
-        return safeCall({ service.blockUser(BlockRequestDto(blockedUserId)) }) { true }
+    suspend fun uploadPhoto(bytes: ByteArray, filename: String = "photo.jpg", kind: String = "profile"): ApiResponse<ProfileEntity> {
+        val body = bytes.toRequestBody("image/jpeg".toMediaType())
+        val part = MultipartBody.Part.createFormData("photo", filename, body)
+        return safeCall({ service.uploadPhoto(part, kind) }) { dto ->
+            dto.profile?.toEntity() ?: throw IllegalStateException("Upload succeeded without a profile")
+        }
+    }
+
+    suspend fun forgotPassword(email: String): ApiResponse<Boolean> {
+        return safeCall({ service.forgotPassword(ForgotPasswordRequestDto(email)) }) { true }
+    }
+
+    suspend fun resetPassword(token: String, password: String): ApiResponse<Boolean> {
+        return safeCall({ service.resetPassword(ResetPasswordRequestDto(token, password)) }) { true }
+    }
+
+    suspend fun deleteAccount(): ApiResponse<Boolean> {
+        return safeCall({ service.deleteAccount() }) { true }
+    }
+
+    suspend fun fetchCurrentSubscription(): ApiResponse<CurrentSubscriptionDto> {
+        return safeCall({ service.getCurrentSubscription() }) { it }
     }
 
     private fun persistSession(data: AuthResponseData) {

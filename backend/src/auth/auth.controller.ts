@@ -5,6 +5,7 @@ import { prisma } from '../db/prisma';
 import { fail, ok } from '../utils/http';
 import { dobFromAge, stringifyStringArray } from '../utils/json';
 import { toAuthPayload, toProfileDto } from '../utils/mappers';
+import { EmailService } from '../services/email.service';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 const registerSchema = z.object({
@@ -77,6 +78,7 @@ export class AuthController {
         where: { id: user.id },
         data: { verificationToken },
       });
+      await EmailService.sendVerification(user.email, verificationToken);
 
       const tokens = AuthService.generateTokens({ userId: user.id, email: user.email, role: user.role });
       return ok(res, { ...toAuthPayload(user, body.fullName, tokens), verificationToken }, 201);
@@ -118,7 +120,7 @@ export class AuthController {
   }
 
   static async verifyEmail(req: Request, res: Response) {
-    const { token } = req.body;
+    const token = String(req.body?.token || req.query.token || '');
     if (!token) {
       return fail(res, 'MISSING_TOKEN', 'Verification token required.');
     }
@@ -134,6 +136,60 @@ export class AuthController {
     });
 
     return ok(res, { message: 'Email verified successfully.' });
+  }
+
+  static async forgotPassword(req: Request, res: Response) {
+    const email = String(req.body?.email || '').toLowerCase().trim();
+    if (!email) return fail(res, 'VALIDATION_ERROR', 'Email is required.');
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user && user.status === 'ACTIVE') {
+      const token = AuthService.generatePasswordResetToken(user.id);
+      const expires = new Date(Date.now() + 60 * 60 * 1000);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { resetToken: token, resetTokenExpires: expires },
+      });
+      await EmailService.sendPasswordReset(user.email, token);
+    }
+
+    return ok(res, { message: 'If that email is registered, a reset link has been sent.' });
+  }
+
+  static async resetPassword(req: Request, res: Response) {
+    const token = String(req.body?.token || '');
+    const password = String(req.body?.password || '');
+    if (!token || password.length < 8) {
+      return fail(res, 'VALIDATION_ERROR', 'A valid token and a password of at least 8 characters are required.');
+    }
+
+    const payload = AuthService.verifyPasswordResetToken(token);
+    if (!payload) return fail(res, 'INVALID_TOKEN', 'Reset token is invalid or expired.');
+
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user || user.resetToken !== token) {
+      return fail(res, 'INVALID_TOKEN', 'Reset token is invalid or expired.');
+    }
+    if (user.resetTokenExpires && user.resetTokenExpires < new Date()) {
+      return fail(res, 'INVALID_TOKEN', 'Reset token is invalid or expired.');
+    }
+
+    const passwordHash = await AuthService.hashPassword(password);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, resetToken: null, resetTokenExpires: null },
+    });
+    return ok(res, { message: 'Password updated. You can sign in with your new password.' });
+  }
+
+  static async deleteAccount(req: AuthenticatedRequest, res: Response) {
+    const userId = req.user?.userId;
+    if (!userId) return fail(res, 'UNAUTHORIZED', 'Authentication required', 401);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { status: 'DELETED', email: `deleted_${Date.now()}_${userId}@invalid.local` },
+    });
+    return ok(res, { message: 'Account deleted.' });
   }
 
   static async refreshToken(req: Request, res: Response) {

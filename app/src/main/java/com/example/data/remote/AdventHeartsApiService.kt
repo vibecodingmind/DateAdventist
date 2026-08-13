@@ -6,11 +6,15 @@ import com.example.data.local.NotificationEntity
 import com.example.data.local.ProfileEntity
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import okhttp3.MultipartBody
 
 data class RegisterRequestDto(
     val email: String,
@@ -57,8 +61,27 @@ data class VerifyEmailRequestDto(
     val token: String
 )
 
-data class RefreshTokenRequestDto(
-    val refreshToken: String
+data class ForgotPasswordRequestDto(
+    val email: String
+)
+
+data class ResetPasswordRequestDto(
+    val token: String,
+    val password: String
+)
+
+data class UploadPhotoResponseDto(
+    val url: String,
+    val kind: String? = null,
+    val profile: ProfileDto? = null
+)
+
+data class CurrentSubscriptionDto(
+    val active: Boolean = false,
+    val tier: String = "FREE",
+    val plan: String? = null,
+    val status: String? = null,
+    val expiresAt: String? = null
 )
 
 data class LikeRequestDto(
@@ -239,6 +262,44 @@ data class NotificationDto(
     val timestamp: Long = 0L
 )
 
+fun ProfileEntity.toDto(): ProfileDto = ProfileDto(
+    userId = userId,
+    fullName = fullName,
+    age = age,
+    gender = gender,
+    country = country,
+    city = city,
+    distanceKm = distanceKm,
+    occupation = occupation,
+    education = education,
+    bio = bio,
+    relationshipIntention = relationshipIntention,
+    primaryPhoto = primaryPhoto,
+    photoUrls = photoUrls,
+    isVerified = isVerified,
+    verificationStatus = verificationStatus,
+    verificationSelfieUri = verificationSelfieUri,
+    isPremium = isPremium,
+    isPaused = isPaused,
+    lastActiveText = lastActiveText,
+    adventistAffiliation = adventistAffiliation,
+    yearsAsAdventist = yearsAsAdventist,
+    localChurch = localChurch,
+    isBaptized = isBaptized,
+    faithImportance = faithImportance,
+    churchInvolvement = churchInvolvement,
+    sabbathObservance = sabbathObservance,
+    ministryInterests = ministryInterests,
+    personalBibleStudy = personalBibleStudy,
+    favoriteVerse = favoriteVerse,
+    diet = diet,
+    alcohol = alcohol,
+    smoking = smoking,
+    wantsChildren = wantsChildren,
+    hasChildren = hasChildren,
+    interests = interests
+)
+
 fun ProfileDto.toEntity(): ProfileEntity = ProfileEntity(
     userId = userId,
     fullName = fullName,
@@ -319,6 +380,15 @@ interface AdventHeartsApiService {
     @POST("auth/refresh-token")
     suspend fun refreshToken(@Body request: RefreshTokenRequestDto): Response<BackendResponseDto<GenericAckDto>>
 
+    @POST("auth/forgot-password")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequestDto): Response<BackendResponseDto<GenericAckDto>>
+
+    @POST("auth/reset-password")
+    suspend fun resetPassword(@Body request: ResetPasswordRequestDto): Response<BackendResponseDto<GenericAckDto>>
+
+    @POST("auth/delete-account")
+    suspend fun deleteAccount(): Response<BackendResponseDto<GenericAckDto>>
+
     @GET("auth/me")
     suspend fun getMe(): Response<BackendResponseDto<AuthResponseDto>>
 
@@ -327,6 +397,16 @@ interface AdventHeartsApiService {
 
     @PUT("profile")
     suspend fun updateProfile(@Body profile: ProfileDto): Response<BackendResponseDto<ProfileDto>>
+
+    @PUT("profile/faith")
+    suspend fun updateFaithProfile(@Body profile: ProfileDto): Response<BackendResponseDto<ProfileDto>>
+
+    @Multipart
+    @POST("profile/photo")
+    suspend fun uploadPhoto(
+        @Part photo: MultipartBody.Part,
+        @Query("kind") kind: String = "profile"
+    ): Response<BackendResponseDto<UploadPhotoResponseDto>>
 
     @GET("discover")
     suspend fun getDiscoveryProfiles(
@@ -360,6 +440,9 @@ interface AdventHeartsApiService {
     @POST("matches/{matchId}/read")
     suspend fun markMessagesRead(@Path("matchId") matchId: String): Response<BackendResponseDto<GenericAckDto>>
 
+    @DELETE("matches/{matchId}")
+    suspend fun unmatch(@Path("matchId") matchId: String): Response<BackendResponseDto<GenericAckDto>>
+
     @POST("safety/report")
     suspend fun reportUser(@Body request: ReportRequestDto): Response<BackendResponseDto<GenericAckDto>>
 
@@ -371,6 +454,9 @@ interface AdventHeartsApiService {
 
     @GET("subscriptions/plans")
     suspend fun getSubscriptionPlans(): Response<BackendResponseDto<GenericAckDto>>
+
+    @GET("subscriptions/current")
+    suspend fun getCurrentSubscription(): Response<BackendResponseDto<CurrentSubscriptionDto>>
 
     @POST("subscriptions/checkout")
     suspend fun initiateCheckout(@Body request: CheckoutRequestDto): Response<BackendResponseDto<CheckoutResponseDto>>
